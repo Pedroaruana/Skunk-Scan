@@ -1,0 +1,1370 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SkunkScan</title>
+<meta name="description" content="Auditoria passiva de seguranca para sites de pequenas empresas, num terminal no navegador.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+html{background:#121212}
+body{zoom:.9;margin:0;background:#121212;color:#e6e6e6;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:15px;line-height:1.6}
+a{color:#f2f2f2}
+button{font-family:inherit}
+.dim{color:#8a8a8a}
+.h{color:#f2f2f2;font-weight:700;margin-bottom:4px}
+.page{padding:0 0 48px;background:#121212;min-height:100vh}
+.pad{padding-left:clamp(20px,4vw,64px);padding-right:clamp(20px,4vw,64px)}
+
+.bar{display:flex;align-items:center;gap:8px;padding:10px 16px;background:#1c1c1c;border-bottom:1px solid #2a2a2a;position:sticky;top:0;z-index:5}
+.dot{width:12px;height:12px;border-radius:50%;background:#5a5a5a;flex:none}
+.bar .t{flex:1;text-align:center;font-size:12px;color:#8a8a8a}
+.nav{display:flex;flex-wrap:wrap;gap:2px}
+.nav a{color:#8a8a8a;text-decoration:none;font-size:12px;padding:6px 10px;min-height:32px;display:inline-flex;align-items:center}
+.nav a:hover{color:#f2f2f2}
+.nav a.on{color:#0b0b0b;background:#f2f2f2}
+
+.view{display:none}
+.view.on{display:block}
+.vhead{padding-top:40px;display:flex;flex-direction:column;gap:6px}
+.vhead h1{margin:0;font-size:28px;color:#f2f2f2;letter-spacing:-.01em}
+.vhead p{margin:0;color:#8a8a8a;max-width:760px}
+.tag{display:inline-block;border:1px dashed #6a6a6a;color:#bdbdbd;font-size:11px;padding:0 8px;margin-left:8px;vertical-align:middle}
+
+.body{padding-top:40px;padding-bottom:32px;display:flex;flex-direction:column;gap:40px}
+.hero{display:flex;flex-wrap:wrap;align-items:center;gap:32px}
+.title{display:flex;flex-direction:column;gap:22px;padding:8px 0 10px}
+.word{display:flex;flex-wrap:wrap;gap:20px}
+.letter{display:grid;grid-template-columns:repeat(5,16px);grid-auto-rows:16px;gap:2px}
+.letter .on{background:#f2f2f2;box-shadow:5px 5px 0 0 #121212,5px 5px 0 1px #6a6a6a}
+.sky{flex:1 1 340px;min-width:300px;position:relative;height:250px;overflow:hidden}
+.star{position:absolute;background:#e6e6e6;animation:twinkle 3s ease-in-out infinite}
+@keyframes twinkle{0%,100%{opacity:1}50%{opacity:.25}}
+.moon{position:absolute;right:24px;top:6px;display:grid;grid-template-columns:repeat(16,8px);grid-auto-rows:8px;animation:float 6s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.drift{position:absolute;display:flex;flex-direction:column;animation:drift linear infinite}
+@keyframes drift{from{left:-200px}to{left:100%}}
+.cloud{background:repeating-linear-gradient(to right,#8c8c8c 0,#8c8c8c 2px,transparent 2px,transparent 4px)}
+.shoot{position:absolute;top:0;left:0;width:90px;height:2px;background:linear-gradient(to right,transparent,#f2f2f2);opacity:0;animation:shoot 9s linear infinite}
+.shoot.b{left:40%;animation-duration:13s;animation-delay:5s}
+@keyframes shoot{0%{opacity:0;transform:translate(10vw,10px) rotate(20deg)}2%{opacity:1}9%{opacity:0;transform:translate(calc(10vw + 320px),130px) rotate(20deg)}100%{opacity:0;transform:translate(calc(10vw + 320px),130px) rotate(20deg)}}
+
+.box{display:flex;flex-wrap:wrap;border:1px dashed #bdbdbd;position:relative}
+.box .lbl{position:absolute;top:-12px;left:20px;background:#121212;padding:0 10px;color:#f2f2f2}
+.box .l{flex:1 1 340px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;padding:40px 24px 32px;text-align:center}
+.box .r{flex:1 1 420px;display:flex;flex-direction:column;border-left:1px dashed #bdbdbd}
+.box .r>div{padding:18px 22px;display:flex;flex-direction:column;gap:2px}
+.box .r>div:first-child{border-bottom:1px dashed #bdbdbd}
+.lock{display:grid;grid-template-columns:repeat(11,9px);grid-auto-rows:9px}
+
+.skwrap{position:relative;height:105px;margin-bottom:-40px}
+.walker{position:absolute;bottom:0;left:0;animation:walk 14s linear infinite}
+.hopper{animation:hop 14s ease-in-out infinite}
+.skunk{display:grid;grid-template-columns:repeat(22,7px);grid-auto-rows:7px;animation:bob .4s steps(2) infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@keyframes walk{0%{left:0;opacity:0}3%{opacity:1}95%{opacity:1}100%{left:calc(100% - 154px);opacity:0}}
+@keyframes hop{0%,17%,27%,47%,57%,73%,81%,100%{transform:translateY(0)}22%{transform:translateY(-30px)}52%{transform:translateY(-40px)}77%{transform:translateY(-22px)}}
+
+.term{position:relative;border-top:1px solid #3a3a3a;border-bottom:1px solid #3a3a3a;display:flex;flex-direction:column}
+.out{max-height:52vh;overflow-y:auto;padding:16px 4px;font-size:14px}
+.out::-webkit-scrollbar{width:8px}.out::-webkit-scrollbar-thumb{background:#3a3a3a}
+.ln{white-space:pre-wrap;word-break:break-word;min-height:1.6em}
+.k-cmd .p{color:#f2f2f2;font-weight:700}.k-cmd .x{color:#f2f2f2}
+.k-dim .x{color:#8a8a8a}
+.k-ok .p,.k-warn .p{font-weight:700;color:#f2f2f2}.k-warn .p{text-decoration:underline}
+.k-fail .p{font-weight:700;background:#f2f2f2;color:#0b0b0b;padding:0 2px}.k-fail .x{color:#f2f2f2}
+.k-title .x{color:#f2f2f2;font-weight:700;display:inline-block;margin-top:12px}
+.k-code .x{color:#f2f2f2;background:#1d1d1d;display:block;padding:4px 12px;margin:2px 0 8px}
+.k-grade .x{color:#0b0b0b;background:#f2f2f2;font-weight:800;display:inline-block;padding:2px 12px;margin-top:12px}
+.k-ai .p{color:#0b0b0b;background:#f2f2f2;font-weight:700;padding:0 4px;margin-right:8px}.k-ai .x{color:#f2f2f2}
+.k-link .x{color:#f2f2f2;text-decoration:underline}
+.k-chart .x{color:#e6e6e6;display:block;line-height:1.35}
+.prog{display:none;gap:16px;padding:8px 4px;border-top:1px dashed #3a3a3a;font-size:13px;color:#f2f2f2;white-space:pre}
+.prog.on{display:flex}
+.inrow{display:flex;flex-wrap:wrap;align-items:center;gap:12px;border-top:1px solid #3a3a3a;padding:10px 4px}
+.cur{display:inline-block;width:.6em;height:1.15em;background:#f2f2f2;vertical-align:text-bottom;animation:blink 1s steps(1) infinite}
+.cur.hide{display:none}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+#cmd{flex:1 1 260px;min-width:0;min-height:44px;background:transparent;border:0;color:#f2f2f2;font-family:inherit;font-size:15px}
+#cmd:focus{outline:none}#cmd::placeholder{color:#6f6f6f}
+.go,.btn{min-height:44px;padding:0 18px;background:#f2f2f2;color:#0b0b0b;border:0;font-weight:700;font-size:13px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
+.btn.ghost{background:transparent;color:#e6e6e6;border:1px dashed #6a6a6a;font-weight:500}
+.btn.ghost:hover{border-color:#f2f2f2}
+.sugs{display:none;flex-direction:column;border-top:1px dashed #3a3a3a;padding:6px 0}
+.sugs.on{display:flex}
+.sug{background:transparent;border:0;color:#e6e6e6;font-size:14px;text-align:left;min-height:36px;padding:0 12px;cursor:pointer;display:flex;gap:18px;width:100%}
+.sug:hover{background:#1d1d1d}
+.sug b{color:#f2f2f2;min-width:150px}
+.chips{display:flex;flex-wrap:wrap;gap:10px}
+.chip{background:transparent;border:1px dashed #6a6a6a;color:#e6e6e6;font-size:13px;min-height:44px;padding:0 14px;cursor:pointer}
+.chip:hover{border-color:#f2f2f2;color:#fff}
+.smoke{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:3}
+.puff{position:absolute;width:28px;height:28px;background:#9a9a9a;animation:puff 1.7s ease-out forwards}
+@keyframes puff{0%{transform:scale(.2);opacity:.95}60%{opacity:.85}100%{transform:scale(5);opacity:0}}
+
+.sec{margin-top:56px}
+.cli{display:flex;flex-wrap:wrap;gap:32px;align-items:flex-start}
+.cli .a{flex:1 1 300px;display:flex;flex-direction:column;gap:12px}
+.cli pre{flex:2 1 480px;min-width:0;margin:0;border:1px solid #2a2a2a;background:#0f0f0f;padding:16px 18px;font-size:13px;overflow-x:auto;font-family:inherit}
+.codeb{background:#1d1d1d;padding:10px 14px;color:#f2f2f2;font-size:14px}
+.feats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px dashed #3a3a3a;border-left:1px dashed #3a3a3a;margin-top:20px}
+@media (max-width:1000px){.feats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){.feats{grid-template-columns:1fr}}
+.feat{padding:20px;border-right:1px dashed #3a3a3a;border-bottom:1px dashed #3a3a3a;display:flex;flex-direction:column;gap:8px}
+.feat .top{display:flex;justify-content:space-between;gap:12px}
+.feat .top b{color:#f2f2f2}
+.ok-b{font-weight:700}.warn-b{font-weight:700;text-decoration:underline}.fail-b{font-weight:700;background:#f2f2f2;color:#0b0b0b}
+
+/* resultado */
+.rtop{display:flex;flex-wrap:wrap;gap:40px;align-items:center;padding:32px 0;border-bottom:1px dashed #3a3a3a}
+.rgrade{display:flex;flex-direction:column;align-items:center;gap:14px;padding:18px 26px;border:1px solid #f2f2f2}
+.rmeta{flex:1 1 360px;display:flex;flex-direction:column;gap:10px}
+.rmeta .dom{font-size:26px;color:#f2f2f2;font-weight:800;word-break:break-all}
+.counts{display:flex;flex-wrap:wrap;gap:0;border:1px dashed #3a3a3a;width:max-content;max-width:100%}
+.counts div{padding:10px 18px;display:flex;flex-direction:column;border-right:1px dashed #3a3a3a}
+.counts div:last-child{border-right:0}
+.counts b{font-size:22px;color:#f2f2f2}
+.racts{display:flex;flex-wrap:wrap;gap:10px}
+.rbody{display:flex;flex-wrap:wrap;gap:40px;padding-top:32px}
+.rmain{flex:999 1 560px;min-width:0;display:flex;flex-direction:column;gap:28px}
+.rside{flex:1 1 320px;min-width:0;display:flex;flex-direction:column;gap:28px}
+.sevh{display:flex;align-items:center;gap:12px;color:#f2f2f2;font-weight:700;margin-bottom:10px}
+.sevh .p{padding:0 6px}
+.issue{border:1px dashed #3a3a3a;padding:16px 18px;display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.issue .it{color:#f2f2f2;font-weight:700}
+.issue .why{color:#bdbdbd;font-size:14px}
+.issue .where{color:#8a8a8a;font-size:12px}
+.fix{display:flex;align-items:stretch;background:#1d1d1d}
+.fix code{flex:1;padding:8px 12px;white-space:pre-wrap;word-break:break-all;color:#f2f2f2;font-size:13px}
+.fix button{background:transparent;border:0;border-left:1px solid #3a3a3a;color:#bdbdbd;font-size:12px;padding:0 14px;cursor:pointer;min-height:40px}
+.fix button:hover{color:#fff}
+.oklist div{padding:4px 0;border-bottom:1px dashed #2a2a2a}
+.chartbox{border:1px dashed #3a3a3a;padding:16px 18px;overflow-x:auto}
+.chartbox pre{margin:0;font-family:inherit;font-size:13px;line-height:1.35;color:#e6e6e6}
+
+/* radar */
+.metrics{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.metrics button{background:transparent;border:1px dashed #6a6a6a;color:#bdbdbd;font-size:13px;min-height:40px;padding:0 14px;cursor:pointer}
+.metrics button.on{background:#f2f2f2;color:#0b0b0b;border-color:#f2f2f2;font-weight:700}
+.radar{display:flex;flex-wrap:wrap;gap:40px;padding-top:28px;align-items:flex-start}
+.tiles{display:grid;grid-template-columns:repeat(8,64px);grid-auto-rows:64px;gap:4px;flex:none}
+.tile{border:0;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:13px;font-weight:700;line-height:1.2;padding:0}
+.tile small{font-weight:400;font-size:11px}
+.tile.sel{outline:2px solid #f2f2f2;outline-offset:3px}
+.rpanel{flex:1 1 360px;min-width:0;display:flex;flex-direction:column;gap:24px}
+.big{font-size:56px;line-height:1;font-weight:800;color:#f2f2f2}
+.legend{display:flex;align-items:center;gap:10px;font-size:12px;color:#8a8a8a}
+.legend span.g{width:160px;height:10px;background:linear-gradient(to right,#262626,#e0e0e0)}
+.rank{font-size:13px;white-space:pre;overflow-x:auto}
+
+/* como funciona */
+.flow{margin:28px 0 0;border:1px solid #2a2a2a;background:#0f0f0f;padding:20px 24px;font-family:inherit;font-size:13px;line-height:1.35;overflow-x:auto;color:#e6e6e6}
+.checks{margin-top:36px;border-top:1px dashed #3a3a3a}
+.check{display:flex;flex-wrap:wrap;gap:12px 32px;padding:22px 0;border-bottom:1px dashed #3a3a3a}
+.check .n{flex:0 0 40px;color:#6f6f6f;font-weight:700}
+.check .c1{flex:1 1 220px;color:#f2f2f2;font-weight:700}
+.check .c2{flex:3 1 420px;display:flex;flex-direction:column;gap:6px;color:#bdbdbd;font-size:14px}
+.check .src{font-size:12px;color:#8a8a8a}
+.two{display:flex;flex-wrap:wrap;gap:40px;margin-top:40px}
+.two>div{flex:1 1 380px;min-width:0}
+.two ul{margin:8px 0 0;padding-left:20px;color:#bdbdbd}
+.two li{margin:4px 0}
+.gtable{width:100%;border-collapse:collapse;font-size:14px;margin-top:8px}
+.gtable td{padding:8px 10px;border-bottom:1px dashed #2a2a2a;vertical-align:top}
+.gtable td:first-child{color:#f2f2f2;font-weight:800;width:48px}
+
+/* docs */
+.man{display:flex;flex-wrap:wrap;gap:40px;padding-top:28px;align-items:flex-start}
+.toc{flex:0 0 200px;position:sticky;top:64px;display:flex;flex-direction:column;font-size:13px}
+.toc a{color:#8a8a8a;text-decoration:none;padding:4px 0}
+.toc a:hover{color:#f2f2f2}
+.manp{flex:1 1 560px;min-width:0;font-size:14px}
+.manp .mh{display:flex;justify-content:space-between;color:#8a8a8a;border-bottom:1px dashed #3a3a3a;padding-bottom:8px;margin-bottom:8px;gap:12px;flex-wrap:wrap}
+.manp h2{font-size:14px;color:#f2f2f2;margin:26px 0 6px;letter-spacing:.06em}
+.manp p,.manp dd{color:#c9c9c9;margin:4px 0 4px 32px}
+.manp dl{margin:0}
+.manp dt{margin:10px 0 0 32px;color:#f2f2f2;font-weight:700}
+.manp dd{margin-left:64px}
+.manp pre{margin:8px 0 8px 32px;background:#1d1d1d;padding:10px 14px;font-family:inherit;font-size:13px;overflow-x:auto;color:#f2f2f2}
+
+/* mapa */
+.mapw{display:flex;flex-wrap:wrap;gap:24px;padding-top:28px}
+.graph{flex:999 1 620px;min-width:0;position:relative;height:600px;border:1px solid #2a2a2a;background:#0f0f0f;overflow:hidden;touch-action:none;
+background-image:radial-gradient(#262626 1px,transparent 1px);background-size:20px 20px}
+.graph svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.node{position:absolute;transform:translate(-50%,-50%);cursor:grab;white-space:nowrap;font-size:12px;padding:6px 10px;min-height:32px;border:1px solid #6a6a6a;background:#121212;color:#e6e6e6;user-select:none}
+.node:active{cursor:grabbing}
+.node.root{background:#f2f2f2;color:#0b0b0b;font-weight:800;font-size:14px;padding:10px 14px;border-color:#f2f2f2}
+.node.infra{border-style:dashed}
+.node.risk{background:#0b0b0b;border:1px solid #f2f2f2;color:#f2f2f2;font-weight:700}
+.node.risk::before{content:'! ';}
+.node.off{color:#6f6f6f;border-color:#3a3a3a}
+.node.phish{border:1px dashed #f2f2f2;color:#f2f2f2}
+.node.sel{outline:2px solid #f2f2f2;outline-offset:3px}
+.mpanel{flex:1 1 300px;min-width:0;border:1px dashed #3a3a3a;padding:18px 20px;display:flex;flex-direction:column;gap:10px;align-self:flex-start}
+.mlegend{display:flex;flex-direction:column;gap:6px;font-size:12px;color:#8a8a8a;margin-top:8px}
+
+.foot{margin-top:40px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;font-size:12px;color:#8a8a8a}
+.foot nav{display:flex;flex-wrap:wrap;gap:6px 18px}
+.foot a{color:#bdbdbd;text-decoration:none;display:inline-flex;align-items:center;min-height:32px}
+.foot a:hover{color:#fff;text-decoration:underline}
+
+.doc{position:fixed;inset:0;background:#0b0b0b;z-index:20;display:none;flex-direction:column}
+.doc.on{display:flex}
+.doc .close{background:transparent;border:1px dashed #6a6a6a;color:#e6e6e6;font-size:12px;min-height:32px;padding:0 12px;cursor:pointer}
+.doc .close:hover{border-color:#fff}
+.doc .scroll{overflow-y:auto;flex:1;padding-top:32px;padding-bottom:64px}
+.doc article{max-width:820px;font-size:14px;display:none}
+.doc article h1{font-size:22px;color:#f2f2f2;margin:0 0 4px}
+.doc article h2{font-size:15px;color:#f2f2f2;margin:28px 0 6px}
+.doc article p,.doc article li{color:#c9c9c9}
+.doc article ul{padding-left:20px;margin:6px 0}
+.doc .meta{color:#8a8a8a;font-size:12px;margin-bottom:20px}
+.doc[data-page=termos] #d-termos,.doc[data-page=privacidade] #d-privacidade,.doc[data-page=cookies] #d-cookies{display:block}
+.cookie{position:fixed;left:16px;right:16px;bottom:16px;z-index:10;background:#1c1c1c;border:1px dashed #bdbdbd;padding:14px 18px;display:none;flex-wrap:wrap;align-items:center;gap:12px 20px;font-size:13px;max-width:760px}
+.cookie.on{display:flex}
+.cookie p{margin:0;flex:1 1 360px;color:#c9c9c9}
+.cookie button{min-height:40px;padding:0 16px;font-size:13px;cursor:pointer;background:#f2f2f2;color:#0b0b0b;border:0;font-weight:700}
+
+body.fosforo .page,body.fosforo .doc{filter:sepia(1) hue-rotate(70deg) saturate(4) brightness(1.05)}
+
+@media print{
+body{zoom:1;background:#fff}
+html{background:#fff}
+.bar,.foot,.cookie,.doc,.racts,.view:not(#v-result){display:none!important}
+.page{background:#fff;min-height:0}
+#v-result *{color:#000!important;background:transparent!important;border-color:#000!important;box-shadow:none!important}
+#v-result .rgrade .on{background:#000!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.issue{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="bar">
+<span class="dot"></span><span class="dot"></span><span class="dot"></span>
+<span class="t">skunkscan ~ zsh</span>
+<nav class="nav" aria-label="Paginas">
+<a href="#/" data-v="home">terminal</a>
+<a href="#/radar" data-v="radar">radar</a>
+<a href="#/mapa" data-v="mapa">mapa</a>
+<a href="#/como-funciona" data-v="como">como funciona</a>
+<a href="#/docs" data-v="docs">docs</a>
+</nav>
+</header>
+
+<!-- ============ HOME ============ -->
+<main class="view pad" id="v-home">
+<div class="body">
+
+<div class="hero">
+<div class="title" id="title" role="img" aria-label="SKUNK SCAN"></div>
+<div class="sky" id="sky" aria-hidden="true">
+<div class="moon" id="moon"></div>
+<div class="shoot"></div>
+<div class="shoot b"></div>
+<div class="drift" style="top:46px;animation-duration:55s;animation-delay:-20s">
+<div class="cloud" style="margin-left:30px;width:54px;height:10px"></div>
+<div class="cloud" style="margin-left:10px;width:110px;height:10px"></div>
+<div class="cloud" style="width:150px;height:12px"></div>
+</div>
+<div class="drift" style="top:120px;animation-duration:90s;animation-delay:-60s;opacity:.6">
+<div class="cloud" style="margin-left:20px;width:40px;height:8px"></div>
+<div class="cloud" style="width:90px;height:8px"></div>
+</div>
+<div class="drift" style="top:176px;animation-duration:70s;animation-delay:-45s">
+<div class="cloud" style="margin-left:40px;width:60px;height:10px"></div>
+<div class="cloud" style="margin-left:14px;width:120px;height:10px"></div>
+<div class="cloud" style="width:170px;height:12px"></div>
+</div>
+</div>
+</div>
+
+<div class="box">
+<div class="lbl">SkunkScan <span class="dim">v0.1</span></div>
+<div class="l">
+<div style="color:#f2f2f2">Bem-vindo ao SkunkScan.</div>
+<div class="lock" id="lock" aria-hidden="true"></div>
+<div class="dim" style="font-size:14px;display:flex;flex-direction:column;gap:2px"><span>auditoria passiva de seguranca</span><span>~/crypto-skunks/hackbrasil-2026</span></div>
+</div>
+<div class="r">
+<div><div class="h">Ultimas varreduras</div><div id="recent"></div><div class="dim">... /historico para mais</div></div>
+<div><div class="h">Novidades</div>
+<div><a href="#/radar" style="text-decoration:none">/radar</a> mostra o mapa de seguranca do brasil</div>
+<div>/perguntar tira duvidas com a ia</div>
+<div><a href="#/mapa" style="text-decoration:none">/mapa</a> desenha a superficie de ataque</div>
+<div class="dim">... /ajuda para mais</div></div>
+</div>
+</div>
+
+<div class="skwrap" aria-hidden="true"><div class="walker"><div class="hopper"><div class="skunk" id="skunk"></div></div></div></div>
+
+<section class="term" id="term" aria-label="Terminal">
+<div class="out" id="out" role="log" aria-live="polite"></div>
+<div class="prog" id="prog"><span id="pbar"></span><span class="dim" id="ppct"></span></div>
+<div class="inrow">
+<label for="cmd" style="color:#f2f2f2;font-weight:700">&gt;</label>
+<span class="cur" id="cur" aria-hidden="true"></span>
+<input id="cmd" type="text" autocomplete="off" spellcheck="false" placeholder="digite um comando, ex.: /scan seusite.com.br">
+<span class="dim" style="font-size:12px" id="quota"></span>
+<button type="button" class="go" id="go">enter</button>
+</div>
+<div class="sugs" id="sugs"></div>
+</section>
+
+<div style="display:flex;flex-direction:column;gap:12px">
+<div class="dim" style="font-size:12px">experimente:</div>
+<div class="chips" id="chips"></div>
+</div>
+</div>
+
+<section class="sec cli" aria-label="Linha de comando">
+<div class="a">
+<div class="h">// tambem no seu terminal</div>
+<div class="dim" style="font-size:14px">A mesma varredura, sem instalar nada. Da para usar no ci e travar o deploy se a nota cair. <a href="#/docs">ver documentacao</a></div>
+<div class="codeb">npx skunkscan seusite.com.br</div>
+</div>
+<pre>$ npx skunkscan lojadojoao.com.br --min-grade B
+
+  skunkscan v0.1
+
+  <span class="ok-b">[ ok ]</span> https ativo
+  <span class="ok-b">[ ok ]</span> certificado valido ate 03/2027
+  <span class="warn-b">[ !! ]</span> dmarc ausente
+  <span class="fail-b">[fail]</span> nginx/1.18.0 exposto, 2 cves
+  <span class="fail-b">[fail]</span> 3 subdominios expostos
+
+  nota D   (minima exigida: B)
+<span class="dim">  processo encerrado com codigo 1</span></pre>
+</section>
+
+<section class="sec" aria-label="Funcionalidades">
+<div class="h">// o que o skunkscan faz</div>
+<div class="feats" id="feats"></div>
+</section>
+</main>
+
+<!-- ============ RESULTADO ============ -->
+<main class="view pad" id="v-result">
+<div class="vhead">
+<div class="dim" style="font-size:12px">skunkscan // relatorio publico <span id="r-id"></span></div>
+</div>
+<div class="rtop">
+<div class="rgrade"><div id="r-letter"></div><div class="dim" style="font-size:12px">nota de seguranca</div></div>
+<div class="rmeta">
+<div class="dom" id="r-dom"></div>
+<div class="dim" id="r-date"></div>
+<div class="counts" id="r-counts"></div>
+<div class="racts">
+<button type="button" class="btn" id="r-copy">copiar link</button>
+<button type="button" class="btn ghost" id="r-pdf">baixar pdf</button>
+<a class="btn ghost" id="r-map" href="#/mapa">ver mapa de ataque</a>
+<a class="btn ghost" href="#/">voltar ao terminal</a>
+</div>
+</div>
+</div>
+<div class="rbody">
+<div class="rmain" id="r-issues"></div>
+<aside class="rside">
+<div><div class="h">Evolucao da nota</div><div class="chartbox"><pre id="r-chart"></pre></div></div>
+<div><div class="h">O que esta certo</div><div class="oklist" id="r-ok"></div></div>
+<div class="dim" style="font-size:12px">Analise passiva: so foram lidas informacoes publicas do site. Revise cada correcao antes de aplicar.</div>
+</aside>
+</div>
+</main>
+
+<!-- ============ RADAR ============ -->
+<main class="view pad" id="v-radar">
+<div class="vhead">
+<h1>Radar Brasil <span class="tag">dados de exemplo</span></h1>
+<p>Como esta a seguranca dos sites de pequenas empresas em cada estado. Os numeros saem das varreduras feitas no SkunkScan, sem identificar nenhum site.</p>
+</div>
+<div class="metrics" id="metrics" role="tablist"></div>
+<div class="radar">
+<div>
+<div class="tiles" id="tiles"></div>
+<div class="legend" style="margin-top:16px"><span>menos</span><span class="g"></span><span>mais</span></div>
+</div>
+<div class="rpanel">
+<div>
+<div class="dim" style="font-size:12px" id="rp-scope">media nacional</div>
+<div class="big" id="rp-big"></div>
+<div style="color:#f2f2f2" id="rp-label"></div>
+<div class="dim" style="font-size:13px" id="rp-sites"></div>
+</div>
+<div><div class="h">Estados mais expostos</div><div class="rank" id="rp-rank"></div></div>
+<div class="dim" style="font-size:12px">Clique em um estado para ver os detalhes. Os dados sao agregados e anonimos.</div>
+</div>
+</div>
+</main>
+
+<!-- ============ MAPA ============ -->
+<main class="view pad" id="v-mapa">
+<div class="vhead">
+<h1>Mapa da superficie de ataque</h1>
+<p>Tudo o que um atacante enxerga do lado de fora de <b id="m-dom" style="color:#f2f2f2"></b>. Arraste os nos e clique para ver os detalhes.</p>
+</div>
+<div class="mapw">
+<div class="graph" id="graph"><svg id="edges" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg></div>
+<aside class="mpanel" id="mpanel" aria-live="polite">
+<div class="h" id="mp-t">Clique em um no</div>
+<div class="dim" id="mp-d" style="font-size:14px">Cada caixa e algo exposto na internet. As de borda branca com ! sao riscos.</div>
+<div class="mlegend">
+<span>[ dominio ]  centro do mapa</span>
+<span>[ subdominio ]  enderecos publicados</span>
+<span>[- - infra - -]  servidor e e-mail</span>
+<span>[ ! risco ]  precisa de correcao</span>
+</div>
+</aside>
+</div>
+</main>
+
+<!-- ============ COMO FUNCIONA ============ -->
+<main class="view pad" id="v-como">
+<div class="vhead">
+<h1>Como funciona</h1>
+<p>O SkunkScan olha o seu site do jeito que um atacante olharia, mas sem encostar em nada. Ele so le informacao que ja e publica.</p>
+</div>
+<pre class="flow">  voce
+   |
+   |  /scan lojadojoao.com.br
+   v
++----------------------------------------------------------------------+
+|                  coletores, rodando em paralelo                      |
++----------------------------------------------------------------------+
+   |              |                |               |               |
+   v              v                v               v               v
+ tls e         dns              certificate     osv / nvd       rdap
+ headers       spf, dkim,       transparency    cves da         dominios
+               dmarc            subdominios     versao          parecidos
+   |              |                |               |               |
+   +--------------+-------+--------+---------------+---------------+
+                          |
+                          v
+                 motor de nota (A a D)
+                          |
+                          v
+              ia escreve as correcoes
+                          |
+          +---------------+---------------+---------------+
+          v               v               v               v
+      terminal        relatorio        link /r/        selo e
+      ao vivo         em pdf           publico         monitoramento</pre>
+
+<div class="checks" id="checks"></div>
+
+<div class="two">
+<div>
+<div class="h">Como a nota e calculada</div>
+<table class="gtable">
+<tr><td>A</td><td>nenhum problema grave e no maximo 1 medio</td></tr>
+<tr><td>B</td><td>nenhum grave e ate 3 medios</td></tr>
+<tr><td>C</td><td>1 grave, ou mais de 3 medios</td></tr>
+<tr><td>D</td><td>2 ou mais graves, ou https quebrado</td></tr>
+</table>
+</div>
+<div>
+<div class="h">O que o SkunkScan nunca faz</div>
+<ul>
+<li>varredura de portas</li>
+<li>tentativa de login ou de quebrar senha</li>
+<li>envio de payload, injecao ou qualquer teste de invasao</li>
+<li>acesso a areas que exigem autenticacao</li>
+<li>analise de localhost ou ips internos</li>
+</ul>
+</div>
+</div>
+</main>
+
+<!-- ============ DOCS ============ -->
+<main class="view pad" id="v-docs">
+<div class="vhead">
+<h1>man skunkscan</h1>
+<p>Documentacao da linha de comando e da API.</p>
+</div>
+<div class="man">
+<nav class="toc" aria-label="Secoes">
+<a href="#/docs" data-s="nome">NOME</a>
+<a href="#/docs" data-s="sinopse">SINOPSE</a>
+<a href="#/docs" data-s="opcoes">OPCOES</a>
+<a href="#/docs" data-s="saida">CODIGOS DE SAIDA</a>
+<a href="#/docs" data-s="api">API</a>
+<a href="#/docs" data-s="exemplos">EXEMPLOS</a>
+<a href="#/docs" data-s="limites">LIMITES</a>
+</nav>
+<div class="manp">
+<div class="mh"><span>SKUNKSCAN(1)</span><span>Manual do SkunkScan</span><span>SKUNKSCAN(1)</span></div>
+
+<h2 id="s-nome">NOME</h2>
+<p>skunkscan - auditoria passiva de seguranca de sites</p>
+
+<h2 id="s-sinopse">SINOPSE</h2>
+<pre>npx skunkscan &lt;dominio&gt; [--json] [--min-grade A|B|C|D] [--sem-cor] [--timeout segundos]</pre>
+<p>Le apenas informacoes publicas do dominio: certificado, headers, dns, registros de Certificate Transparency, bases de CVE e registros de dominios. Nao faz teste de invasao.</p>
+
+<h2 id="s-opcoes">OPCOES</h2>
+<dl>
+<dt>--json</dt><dd>imprime o resultado em JSON, sem animacao. Bom para ci e scripts.</dd>
+<dt>--min-grade &lt;nota&gt;</dt><dd>encerra com codigo 1 se a nota for menor que a informada.</dd>
+<dt>--sem-cor</dt><dd>desliga as cores e os efeitos do terminal.</dd>
+<dt>--timeout &lt;segundos&gt;</dt><dd>tempo maximo da varredura. Padrao: 30.</dd>
+</dl>
+
+<h2 id="s-saida">CODIGOS DE SAIDA</h2>
+<dl>
+<dt>0</dt><dd>nota igual ou acima da minima</dd>
+<dt>1</dt><dd>nota abaixo da minima</dd>
+<dt>2</dt><dd>erro: dominio invalido ou fora do ar</dd>
+<dt>3</dt><dd>limite de varreduras atingido</dd>
+</dl>
+
+<h2 id="s-api">API</h2>
+<dl>
+<dt>POST /api/scan</dt><dd>inicia uma varredura. Responde em text/event-stream, uma linha por checagem concluida.</dd>
+</dl>
+<pre>curl -N -X POST https://skunkscan.app/api/scan \
+  -H "content-type: application/json" \
+  -d '{"dominio":"lojadojoao.com.br"}'
+
+event: linha
+data: {"etapa":1,"status":"ok","texto":"https ativo"}
+
+event: fim
+data: {"id":"8f2k1a","nota":"D","graves":3,"medios":3}</pre>
+<dl>
+<dt>GET /api/r/:id</dt><dd>resultado completo de uma varredura compartilhada.</dd>
+<dt>GET /api/selo/:dominio.svg</dt><dd>selo do site. So existe enquanto a nota for A.</dd>
+<dt>POST /api/monitorar</dt><dd>corpo {"dominio","email"}. Ativa a verificacao diaria com alerta por e-mail.</dd>
+<dt>POST /api/perguntar</dt><dd>corpo {"pergunta","id?"}. Resposta da ia, usando o resultado da varredura como contexto quando o id e enviado.</dd>
+</dl>
+
+<h2 id="s-exemplos">EXEMPLOS</h2>
+<pre>npx skunkscan lojadojoao.com.br
+npx skunkscan lojadojoao.com.br --json &gt; resultado.json
+npx skunkscan lojadojoao.com.br --min-grade B   # trava o ci se cair abaixo de B</pre>
+<p>No GitHub Actions:</p>
+<pre>- run: npx skunkscan meusite.com.br --min-grade B --sem-cor</pre>
+
+<h2 id="s-limites">LIMITES</h2>
+<p>5 varreduras por hora por IP. Localhost e IPs internos (10.x, 172.16 a 31.x, 192.168.x, 169.254.x) sao recusados.</p>
+
+<h2>VEJA TAMBEM</h2>
+<p><a href="#/como-funciona">como funciona</a>, <a href="#termos">termos de uso</a>, <a href="#privacidade">privacidade</a></p>
+</div>
+</div>
+</main>
+
+<div class="foot pad">
+<span>crypto skunks // hack brasil 2026 // trilha ciberseguranca</span>
+<nav aria-label="Legal">
+<a href="#termos">termos de uso</a>
+<a href="#privacidade">privacidade</a>
+<a href="#cookies">cookies</a>
+<a href="robots.txt">robots.txt</a>
+<a href="llms.txt">llms.txt</a>
+</nav>
+</div>
+</div>
+
+<div class="doc" id="doc" role="dialog" aria-modal="true" aria-labelledby="doc-t">
+<div class="bar">
+<span class="dot"></span><span class="dot"></span><span class="dot"></span>
+<span class="t" id="doc-t">less termos.md</span>
+<button type="button" class="close" id="doc-close">q / esc para sair</button>
+</div>
+<div class="scroll pad">
+<article id="d-termos">
+<h1>Termos de uso</h1>
+<div class="meta">ultima atualizacao: 17/11/2026</div>
+<h2>1. O que e o SkunkScan</h2>
+<p>O SkunkScan analisa a seguranca de sites de forma passiva. Ele so le informacoes que o proprio site ja deixa publicas: certificado, headers, registros de DNS, registros publicos de certificados e registros de dominios. Nenhum teste de invasao e feito.</p>
+<h2>2. Uso permitido</h2>
+<ul><li>Analisar sites seus, da sua empresa ou de clientes que autorizaram.</li><li>Analisar sites publicos para fins de estudo e pesquisa, sem causar dano.</li></ul>
+<h2>3. Uso proibido</h2>
+<ul><li>Usar o servico para preparar ataques, fraudes ou qualquer ato ilegal.</li><li>Burlar o limite de varreduras, automatizar acessos em massa ou tentar analisar enderecos internos.</li><li>Publicar resultados de terceiros para expor ou prejudicar alguem.</li></ul>
+<p>Podemos bloquear o acesso de quem violar estas regras.</p>
+<h2>4. Limites</h2>
+<p>Cada IP pode fazer ate 5 varreduras por hora. Localhost e IPs internos sao bloqueados.</p>
+<h2>5. Resultados</h2>
+<p>Os resultados e as correcoes sugeridas, incluindo as geradas por IA, sao informativos. Revise cada correcao antes de aplicar. O SkunkScan nao garante que um site esteja livre de falhas.</p>
+<h2>6. Selo</h2>
+<p>O selo "verificado" so pode ser exibido enquanto o site mantiver nota A. Ele e revalidado todo dia e deixa de aparecer se a nota cair.</p>
+<h2>7. Radar Brasil</h2>
+<p>As estatisticas do radar sao agregadas por estado e nunca identificam um site especifico.</p>
+<h2>8. Responsabilidade</h2>
+<p>O servico e oferecido como esta, sem garantias. Nao nos responsabilizamos por decisoes tomadas com base nos resultados.</p>
+<h2>9. Alteracoes e lei aplicavel</h2>
+<p>Estes termos podem mudar, sempre com a data atualizada nesta pagina. Valem as leis do Brasil.</p>
+<h2>10. Contato</h2>
+<p>[seu e-mail de contato]</p>
+</article>
+<article id="d-privacidade">
+<h1>Politica de privacidade</h1>
+<div class="meta">ultima atualizacao: 17/11/2026 · em conformidade com a LGPD (Lei 13.709/2018)</div>
+<h2>1. Dados que coletamos</h2>
+<ul><li><b>Dominio analisado</b> e o resultado da varredura.</li><li><b>Endereco IP</b>, so para aplicar o limite de varreduras.</li><li><b>E-mail</b>, apenas se voce ativar o monitoramento.</li><li><b>Perguntas feitas a IA</b>, para gerar a resposta.</li></ul>
+<p>Nao pedimos nome, CPF, senha nem criamos conta.</p>
+<h2>2. Para que usamos</h2>
+<ul><li>Fazer a varredura e mostrar o resultado.</li><li>Impedir abuso do servico.</li><li>Enviar alertas do monitoramento.</li><li>Montar as estatisticas agregadas do Radar Brasil, sem identificar sites.</li></ul>
+<h2>3. Base legal</h2>
+<p>Legitimo interesse para a varredura, o radar e a protecao contra abuso. Consentimento para o monitoramento por e-mail, que voce pode cancelar a qualquer momento.</p>
+<h2>4. Por quanto tempo guardamos</h2>
+<ul><li>IP: 24 horas.</li><li>Links compartilhados: 30 dias.</li><li>Perguntas a IA: 7 dias.</li><li>E-mail: ate voce cancelar o monitoramento.</li></ul>
+<h2>5. Com quem compartilhamos</h2>
+<ul><li>Provedor de hospedagem, para o site funcionar.</li><li>Provedor de e-mail (Resend), para enviar os alertas.</li><li>Provedor de IA, que recebe apenas dados tecnicos do dominio e a pergunta. Nenhum dado pessoal e enviado.</li></ul>
+<p>Nao vendemos dados e nao usamos para publicidade.</p>
+<h2>6. Seus direitos</h2>
+<p>Voce pode pedir acesso, correcao ou exclusao dos seus dados, e revogar o consentimento, conforme o art. 18 da LGPD.</p>
+<h2>7. Seguranca</h2>
+<p>Usamos conexao criptografada e guardamos so o minimo necessario.</p>
+<h2>8. Contato do encarregado</h2>
+<p>[seu e-mail de contato]</p>
+</article>
+<article id="d-cookies">
+<h1>Politica de cookies</h1>
+<div class="meta">ultima atualizacao: 17/11/2026</div>
+<h2>1. O que usamos</h2>
+<p>O SkunkScan nao usa cookies de rastreamento, de publicidade ou de analise de terceiros.</p>
+<p>Guardamos apenas um registro no armazenamento local do seu navegador para lembrar que voce ja viu o aviso de cookies.</p>
+<h2>2. Como remover</h2>
+<p>Limpe os dados do site nas configuracoes do navegador. O aviso volta a aparecer e nada mais muda.</p>
+<h2>3. Mudancas</h2>
+<p>Se um dia passarmos a usar outro tipo de cookie, esta pagina sera atualizada e pediremos seu consentimento antes.</p>
+</article>
+</div>
+</div>
+
+<div class="cookie" id="cookie" role="region" aria-label="Aviso de cookies">
+<p>Usamos so o essencial para o site funcionar. Nada de rastreamento ou anuncios. <a href="#cookies">saiba mais</a></p>
+<button type="button" id="cookie-ok">entendi</button>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id)
+const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e }
+const cell = (bg) => { const d = el('div'); if (bg) d.style.background = bg; return d }
+const hash = (s) => s.split('').reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7)
+const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+const clean = (s) => (s || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '').toLowerCase()
+const today = () => { const d = new Date(); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') }
+const idFor = (d) => hash(d).toString(36).slice(0, 6)
+
+/* ---------- pixel art ---------- */
+const FONT = {
+S: ['11111','10000','11111','00001','11111'], K: ['10001','10010','11100','10010','10001'],
+U: ['10001','10001','10001','10001','11111'], N: ['10001','11001','10101','10011','10001'],
+C: ['11111','10000','10000','10000','11111'], A: ['11111','10001','11111','10001','10001'],
+B: ['11110','10001','11110','10001','11110'], D: ['11110','10001','10001','10001','11110']
+}
+const pixelLetter = (ch, size) => {
+const g = el('div', 'letter')
+if (size) { g.style.gridTemplateColumns = 'repeat(5,' + size + 'px)'; g.style.gridAutoRows = size + 'px'; g.style.gap = Math.max(2, size / 8) + 'px' }
+for (const c of FONT[ch].join('')) g.appendChild(el('div', c === '1' ? 'on' : ''))
+return g
+}
+for (const w of ['SKUNK', 'SCAN']) {
+const row = el('div', 'word')
+for (const ch of w) row.appendChild(pixelLetter(ch))
+$('title').appendChild(row)
+}
+for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+const inBig = Math.hypot(x - 7.5, y - 7.5) <= 7.6
+const dCut = Math.hypot(x - 11.5, y - 5.5)
+const on = inBig && dCut > 6.2
+$('moon').appendChild(cell(on ? (dCut <= 7.4 ? '#9a9a9a' : '#f2f2f2') : null))
+}
+;[['8%','6%',4,0],['36%','14%',6,1.2],['58%','4%',4,.6],['22%','62%',6,2],['48%','46%',4,.3],['4%','88%',4,1.6],['70%','60%',6,.9],['94%','84%',4,2.4],['42%','90%',4,1.8]].forEach(([x, y, s, d]) => {
+const st = el('div', 'star'); Object.assign(st.style, { left: x, top: y, width: s + 'px', height: s + 'px', animationDelay: d + 's' }); $('sky').appendChild(st)
+})
+;['00011111000','00110001100','00100000100','00100000100','00100000100','11111111111','11111111111','11111011111','11110001111','11111011111','11111011111','11111111111'].join('').split('').forEach((c) => $('lock').appendChild(cell(c === '1' ? '#f2f2f2' : null)))
+;['...WWWW...............','..WBBBBW..............','.WBBWWBBW.............','.WBW..WBBW............','.WBW...WBW............','..W....WBW............','.......WBW............','......WBBW.....BB.....','....BBBWWWWWWWBBBBB...','...BBBBBBWWWWWBBBEBB..','...BBBBBBBBBBBBBBBBBBW','...BBBBBBBBBBBBBBBBB..','....BBBBBBBBBBBBBB....','....BB..BB....BB.BB...','....BB..BB....BB.BB...'].join('').split('').forEach((c) => $('skunk').appendChild(cell({ W: '#f2f2f2', B: '#4d4d4d', E: '#121212' }[c] || null)))
+
+/* ---------- features ---------- */
+const FEATURES = [
+['terminal de verdade', 'comandos, historico com seta para cima e autocomplete com tab', '/ajuda'],
+['varredura ao vivo', 'cada checagem aparece em tempo real, com barra de progresso', '/scan dominio'],
+['subdominios esquecidos', 'acha dev., staging. e admin. pelos registros publicos de certificados', '/scan dominio'],
+['vulnerabilidades conhecidas', 'cruza a versao exposta do servidor com as cves publicas', '/scan dominio'],
+['sites imitando o seu', 'testa variacoes do dominio e mostra quais ja foram registradas', '/scan dominio'],
+['correcao pronta com ia', 'gera a config, o registro dns ou o header exato para copiar', '/corrigir'],
+['pergunte a ia', 'tire duvidas sobre seguranca usando o resultado do seu site como contexto', '/perguntar'],
+['mapa da superficie de ataque', 'grafo interativo com dominio, subdominios, servidores e riscos', '/mapa'],
+['evolucao da nota', 'grafico com a nota do site em cada varredura', '/evolucao dominio'],
+['radar brasil', 'mapa com a seguranca dos sites de pequenas empresas por estado', '/radar'],
+['pagina do resultado', 'relatorio publico com nota, problemas por gravidade e correcoes', '/compartilhar'],
+['relatorio em pdf', 'para mandar ao desenvolvedor ou ao cliente', '/relatorio'],
+['monitoramento diario', 'verifica todo dia e avisa por e-mail via resend se a nota cair', '/monitorar'],
+['selo verificado', 'sites com nota A exibem o selo, que some sozinho se a nota cair', '/selo dominio'],
+['linha de comando e api', 'a mesma varredura no terminal ou integrada ao seu sistema', 'npx skunkscan'],
+['protecao contra abuso', '5 varreduras por hora por ip e bloqueio de ips internos e localhost', 'automatico']
+]
+FEATURES.forEach(([t, d, c], i) => {
+const f = el('div', 'feat'); const top = el('div', 'top')
+top.append(el('b', '', t), el('span', 'dim', String(i + 1).padStart(2, '0')))
+const dd = el('div', 'dim', d); dd.style.fontSize = '13px'
+const cc = el('div', '', c); cc.style.fontSize = '13px'
+f.append(top, dd, cc); $('feats').appendChild(f)
+})
+
+/* ---------- dados ---------- */
+const EVOL = {
+'lojadojoao.com.br': [['20/10', 'C'], ['03/11', 'C'], ['17/11', 'D']],
+'clinicavidaplena.com.br': [['13/10', 'D'], ['20/10', 'C'], ['27/10', 'B'], ['03/11', 'B'], ['10/11', 'A'], ['17/11', 'A']],
+'padariabomgosto.com': [['27/10', 'C'], ['10/11', 'B'], ['17/11', 'B']]
+}
+const OKS = ['https ativo, redireciona http', 'certificado valido ate 03/2027', 'hsts configurado', 'spf encontrado']
+const issuesFor = (d, grade) => {
+const name = d.split('.')[0]
+const all = {
+versao: { sev: 'grave', t: 'servidor expoe a versao: nginx/1.18.0', why: 'Quem ataca sabe exatamente quais falhas procurar.', fix: 'server_tokens off;', where: 'nginx.conf' },
+cve: { sev: 'grave', t: '2 vulnerabilidades conhecidas no nginx 1.18.0', why: 'CVE-2021-23017 (alta) e CVE-2021-3618 (media) ja tem correcao publica.', fix: 'sudo apt update && sudo apt install nginx', where: 'servidor' },
+phish: { sev: 'grave', t: 'dominio imitando o seu: ' + name + '-promo.com', why: 'Registrado ha 3 dias. Pode ser usado para aplicar golpe nos seus clientes.', fix: 'Denuncie ao registrador do dominio e avise seus clientes pelos canais oficiais.', where: 'acao' },
+dmarc: { sev: 'medio', t: 'dmarc ausente', why: 'Qualquer um pode mandar e-mail se passando pela sua empresa.', fix: 'v=DMARC1; p=quarantine; rua=mailto:dmarc@' + d, where: 'dns, registro TXT em _dmarc' },
+csp: { sev: 'medio', t: 'content-security-policy ausente', why: 'Facilita ataques que injetam scripts na pagina.', fix: "add_header Content-Security-Policy \"default-src 'self'\" always;", where: 'nginx.conf' },
+subs: { sev: 'medio', t: '3 subdominios expostos: dev, staging, admin', why: 'Ambientes de teste e paineis costumam ter menos protecao que o site principal.', fix: 'Proteja com senha ou restrinja por IP. Remova o DNS de antigo.' + d, where: 'dns e servidor' }
+}
+const pick = { D: ['versao', 'cve', 'phish', 'dmarc', 'csp', 'subs'], C: ['versao', 'dmarc', 'csp', 'subs'], B: ['dmarc', 'csp'], A: [] }[grade]
+return pick.map((k) => all[k])
+}
+
+const S = {
+running: false, lastScan: null, scansLeft: 5, cmdHist: [], histIdx: -1, timer: null,
+history: [{ ago: '14m', domain: 'padariabomgosto.com', grade: 'B' }, { ago: '1h', domain: 'clinicavidaplena.com.br', grade: 'A' }, { ago: '2d', domain: 'lojadojoao.com.br', grade: 'C' }]
+}
+const gradeOf = (d) => { const h = S.history.find((x) => x.domain === d); if (h) return h.grade; const e = EVOL[d]; return e ? e[e.length - 1][1] : 'D' }
+const knownDomains = () => [...new Set([...Object.keys(EVOL), ...S.history.map((h) => h.domain)])]
+
+/* ---------- grafico ascii da evolucao ---------- */
+const chart = (series) => {
+const rows = ['A', 'B', 'C', 'D']
+const step = 10
+const width = (series.length - 1) * step + 2
+const grid = rows.map(() => Array(width).fill(' '))
+const cols = series.map((_, i) => 1 + i * step)
+const r = series.map(([, g]) => rows.indexOf(g))
+for (let i = 0; i < series.length - 1; i++) {
+const c1 = cols[i], c2 = cols[i + 1], r1 = r[i], r2 = r[i + 1]
+for (let c = c1 + 1; c < c2 - 1; c++) grid[r1][c] = '─'
+if (r1 === r2) grid[r1][c2 - 1] = '─'
+else if (r2 < r1) { grid[r1][c2 - 1] = '┘'; for (let k = r2 + 1; k < r1; k++) grid[k][c2 - 1] = '│'; grid[r2][c2 - 1] = '┌' }
+else { grid[r1][c2 - 1] = '┐'; for (let k = r1 + 1; k < r2; k++) grid[k][c2 - 1] = '│'; grid[r2][c2 - 1] = '└' }
+}
+series.forEach((_, i) => { grid[r[i]][cols[i]] = '●' })
+const lines = rows.map((g, i) => ' ' + g + ' ┤' + grid[i].join(''))
+const axis = Array(width).fill('─'); cols.forEach((c) => { axis[c] = '┬' })
+lines.push('   └' + axis.join(''))
+const labels = Array(width + 4).fill(' ')
+series.forEach(([d], i) => { const start = cols[i] + 4 - 2; for (let k = 0; k < d.length; k++) labels[start + k] = d[k] })
+lines.push(labels.join(''))
+return lines.join('\n')
+}
+const evolOf = (d) => EVOL[d] || [[today(), gradeOf(d)]]
+
+/* ---------- terminal ---------- */
+const CMDS = [
+['/scan', '<dominio>', 'varredura completa ao vivo'],
+['/corrigir', '', 'correcoes prontas geradas por ia'],
+['/perguntar', '<pergunta>', 'tire duvidas com a ia'],
+['/mapa', '[dominio]', 'mapa da superficie de ataque'],
+['/evolucao', '[dominio]', 'grafico da nota ao longo do tempo'],
+['/compartilhar', '', 'pagina publica do resultado'],
+['/relatorio', '', 'baixa o relatorio em pdf'],
+['/comparar', '<dominio1> <dominio2>', 'compara dois sites'],
+['/historico', '', 'varreduras anteriores'],
+['/monitorar', '<dominio> <email>', 'alerta diario por e-mail'],
+['/selo', '<dominio>', 'selo para sites com nota A'],
+['/radar', '', 'seguranca dos sites por estado'],
+['/como-funciona', '', 'como cada checagem e feita'],
+['/docs', '', 'documentacao da cli e da api'],
+['/termos', '', 'termos de uso'],
+['/privacidade', '', 'politica de privacidade'],
+['/limpar', '', 'limpa o terminal'],
+['/ajuda', '', 'lista os comandos']
+]
+const PRE = { cmd: '> ', ok: '[ ok ] ', warn: '[ !! ] ', fail: '[fail] ', ai: 'ia' }
+const L = (kind, text, wait, href) => ({ kind, text, wait, href })
+const out = $('out'), input = $('cmd')
+
+const print = (l) => {
+const d = el('div', 'ln k-' + l.kind)
+d.appendChild(el('span', 'p', PRE[l.kind] || ''))
+if (l.href) { const a = el('a', 'x', l.text); a.href = l.href; d.appendChild(a) } else d.appendChild(el('span', 'x', l.text))
+out.appendChild(d); out.scrollTop = out.scrollHeight
+return d
+}
+const say = (ls) => ls.forEach(print)
+const renderRecent = () => {
+const r = $('recent'); r.innerHTML = ''
+S.history.slice(0, 3).forEach((h) => {
+const row = el('div'); row.style.cssText = 'display:flex;gap:18px'
+const a = el('span', 'dim', h.ago); a.style.width = '64px'
+const g = el('span', '', h.grade); g.style.cssText = 'margin-left:auto;font-weight:700'
+row.append(a, el('span', '', h.domain), g); r.appendChild(row)
+})
+}
+const renderQuota = () => { $('quota').textContent = 'varreduras: ' + S.scansLeft + '/5 por hora' }
+const setRunning = (on, bar = true) => {
+S.running = on; input.disabled = on
+input.placeholder = on ? 'executando...' : 'digite um comando, ex.: /scan seusite.com.br'
+$('prog').classList.toggle('on', on && bar); updateCursor()
+if (!on) input.focus()
+}
+const setProgress = (p) => {
+const f = Math.round(p / 100 * 28)
+$('pbar').textContent = '[' + '#'.repeat(f) + '.'.repeat(28 - f) + ']'
+$('ppct').textContent = p + '%'
+}
+const play = (lines, done) => {
+let i = 0
+setRunning(true); setProgress(0)
+const step = () => {
+if (i >= lines.length) { setRunning(false); if (done) done(); return }
+const l = lines[i++]; print(l); setProgress(Math.round(i / lines.length * 100))
+S.timer = setTimeout(step, l.wait ?? 140)
+}
+step()
+}
+const typeAnswer = (text) => {
+setRunning(true, false)
+print(L('dim', 'pensando...'))
+S.timer = setTimeout(() => {
+const x = print(L('ai', '')).querySelector('.x')
+let i = 0
+const tick = () => {
+i += 2; x.textContent = text.slice(0, i); out.scrollTop = out.scrollHeight
+if (i < text.length) S.timer = setTimeout(tick, 16)
+else setRunning(false)
+}
+tick()
+}, 700)
+}
+
+const scanLines = (d) => {
+const name = d.split('.')[0]
+const typo = name.includes('o') ? name.replace(/o(?!.*o)/, '0') : name + 's'
+return [
+L('dim', 'resolvendo ' + d + '... 172.67.14.201', 500),
+L('title', '[1/5] transporte e headers', 450),
+L('ok', 'https ativo, redireciona http', 220),
+L('ok', 'certificado valido ate 03/2027', 220),
+L('ok', 'hsts configurado', 220),
+L('warn', 'content-security-policy ausente', 260),
+L('fail', 'servidor expoe versao: nginx/1.18.0', 300),
+L('title', '[2/5] e-mail', 450),
+L('ok', 'spf encontrado', 220),
+L('warn', 'dmarc ausente: qualquer um pode enviar e-mail como @' + d, 300),
+L('title', '[3/5] subdominios (registros publicos de certificados)', 600),
+L('dim', '14 certificados, 6 subdominios unicos', 400),
+L('normal', d, 90),
+L('normal', '├── www.' + d + '        ativo', 90),
+L('normal', '├── loja.' + d + '       ativo', 90),
+L('normal', '├── dev.' + d + '        ativo    [!!] ambiente de teste exposto', 120),
+L('normal', '├── staging.' + d + '    ativo    [!!] sem autenticacao', 120),
+L('normal', '├── admin.' + d + '      ativo    [!!] painel de login publico', 120),
+L('normal', '└── antigo.' + d + '     fora do ar', 200),
+L('title', '[4/5] vulnerabilidades conhecidas (nginx 1.18.0)', 600),
+L('fail', 'CVE-2021-23017   alta    falha no resolver dns do nginx', 260),
+L('warn', 'CVE-2021-3618    media   ataque alpaca em tls', 260),
+L('title', '[5/5] dominios imitando o seu', 500),
+L('dim', 'testando 48 variacoes...', 700),
+L('fail', name + '-promo.com          registrado ha 3 dias    suspeito', 260),
+L('warn', typo + '.com.br        registrado ha 21 dias', 260),
+L('dim', '46 variacoes livres', 300),
+L('grade', 'nota final: D   6 problemas, 3 graves', 400),
+L('dim', 'proximo passo: /corrigir, /mapa, /compartilhar ou /perguntar', 100)
+]
+}
+const profile = (d) => {
+const grade = gradeOf(d)
+const g = 'ABCD'.indexOf(grade)
+return { grade, https: 'ok', csp: g === 0 ? 'ok' : 'ausente', dmarc: g <= 1 ? 'ok' : 'ausente', versao: g >= 2 ? 'exposta' : 'oculta', subs: [0, 0, 1, 3][g], falsos: [0, 0, 1, 2][g] }
+}
+const needScan = () => { say([L('fail', 'nenhuma varredura ainda. use /scan <dominio> primeiro')]) }
+
+const answer = (q) => {
+const t = norm(q)
+const d = S.lastScan
+if (/dmarc/.test(t)) return 'dmarc e um registro no dns que diz aos provedores de e-mail o que fazer com mensagens que usam o seu dominio sem autorizacao. sem ele, um golpista consegue mandar e-mail como contato@suaempresa.com.br e cair na caixa de entrada do seu cliente. a correcao e um registro TXT em _dmarc.seudominio, e o /corrigir gera ele pronto.'
+if (/spf/.test(t)) return 'spf e a lista de servidores autorizados a mandar e-mail pelo seu dominio. ajuda, mas so protege de verdade junto com o dmarc, que diz o que fazer quando a mensagem nao passa no teste.'
+if (/dkim/.test(t)) return 'dkim assina cada e-mail com uma chave, e quem recebe confere a assinatura no seu dns. prova que a mensagem saiu de voce e nao foi alterada no caminho.'
+if (/csp|content.security/.test(t)) return 'content-security-policy e um header que diz ao navegador de onde a pagina pode carregar scripts. sem ele, um script injetado roda livre e pode roubar dados de quem acessa o site.'
+if (/hsts/.test(t)) return 'hsts obriga o navegador a usar sempre https no seu site, mesmo se alguem digitar http. evita que a conexao seja interceptada numa rede wi-fi publica.'
+if (/cve|vulnerab|nginx|versao/.test(t)) return 'cve e o codigo publico de uma falha conhecida. quando o servidor mostra a versao, como nginx/1.18.0, qualquer pessoa consulta quais cves afetam essa versao. o skunkscan faz essa consulta antes do golpista e diz como corrigir: esconder a versao e atualizar.'
+if (/subdom|staging|dev\b|admin/.test(t)) return 'subdominios como dev. e staging. costumam ser criados para teste e esquecidos no ar, sem senha e sem atualizacao. o skunkscan acha eles nos registros publicos de certificados, que todo certificado https gera.'
+if (/golpe|phishing|falso|imita|parecido/.test(t)) return 'golpistas registram dominios parecidos com o seu, como loja-promo.com ou trocando o por 0, para enganar seus clientes. o skunkscan testa dezenas de variacoes e avisa quais ja foram registradas, de preferencia antes do golpe comecar.'
+if (/nota|calcul/.test(t)) return 'a nota vai de A a D. nenhum problema grave e no maximo 1 medio da A. 2 ou mais graves, ou https quebrado, da D. a regra completa esta em /como-funciona.'
+if (/segur|meu site|protegid|risco/.test(t)) {
+if (!d) return 'ainda nao sei, porque nenhum site foi escaneado. rode /scan seusite.com.br e me pergunte de novo.'
+return 'pela ultima varredura de ' + d + ', ainda nao. a nota foi D. o mais urgente: esconder a versao do nginx e atualizar ele, que tem 2 cves conhecidas, e criar o registro dmarc. aplicando as correcoes do /corrigir, a nota estimada vai para A.'
+}
+if (/ola|oi\b|bom dia|boa tarde|boa noite/.test(t)) return 'oi! sou a ia do skunkscan. posso explicar qualquer item da varredura ou dizer o que corrigir primeiro. pergunte, por exemplo: o que e dmarc?'
+return 'ainda estou aprendendo sobre isso. pergunte sobre dmarc, spf, csp, hsts, cves, subdominios, golpes com dominios parecidos ou se o seu site esta seguro.'
+}
+
+const smoke = () => {
+const t = $('term'); const s = el('div', 'smoke')
+for (let i = 0; i < 46; i++) {
+const p = el('div', 'puff')
+Object.assign(p.style, { left: Math.random() * 100 + '%', top: Math.random() * 100 + '%', animationDelay: Math.random() * .5 + 's', background: ['#9a9a9a', '#7a7a7a', '#bdbdbd'][i % 3] })
+s.appendChild(p)
+}
+t.appendChild(s)
+setRunning(true, false)
+setTimeout(() => { out.innerHTML = '' }, 900)
+setTimeout(() => {
+s.remove(); setRunning(false)
+say([L('normal', 'o gamba soltou o spray. terminal limpo, cheiro forte.'), L('dim', 'nenhum dado foi ferido nesta operacao.')])
+}, 2100)
+}
+
+const go = (h) => { location.hash = h }
+
+const run = (raw) => {
+const text = raw.trim()
+if (!text || S.running) return
+input.value = ''; S.histIdx = -1; S.cmdHist.push(text); updateSugs(); updateCursor()
+print(L('cmd', text))
+const [c0, ...args] = text.split(/\s+/)
+const low = c0.toLowerCase()
+
+if (low === 'sudo') {
+if (/rm\s+-rf/.test(text)) return say([L('fail', 'boa tentativa. o gamba nao concede root e acabou de anotar isso no log.')])
+return say([L('fail', 'sudo: voce nao esta no arquivo sudoers. este incidente sera reportado ao gamba.')])
+}
+if (low === 'ls') return say([L('normal', 'radar/   mapa/   como-funciona/   docs/   termos.md   privacidade.md   cookies.md')])
+if (low === 'cd') {
+const p = (args[0] || '').replace(/\/$/, '')
+const map = { radar: '#/radar', mapa: '#/mapa', 'como-funciona': '#/como-funciona', docs: '#/docs' }
+if (map[p]) return go(map[p])
+return say([L('fail', 'cd: ' + (p || '~') + ': diretorio nao encontrado')])
+}
+if (low === 'man') return go('#/docs')
+if (low === 'whoami') return say([L('normal', 'visitante. nivel de acesso: curioso.')])
+if (low === 'exit') return say([L('dim', 'nao tem saida. o gamba fica.')])
+if (!c0.startsWith('/') && /\?$/.test(text)) return typeAnswer(answer(text))
+
+const c = (c0.startsWith('/') ? c0 : '/' + c0).toLowerCase()
+
+if (c === '/ajuda') return say([L('title', 'comandos'), ...CMDS.map(([n, a, d]) => L('normal', (n + ' ' + a).padEnd(36) + d)), L('dim', 'dica: seta para cima repete o ultimo comando. perguntas terminadas em ? vao direto para a ia.')])
+if (c === '/limpar') { out.innerHTML = ''; return }
+if (c === '/gamba') return smoke()
+if (c === '/scan') {
+const d = clean(args[0])
+if (!d || (!d.includes('.') && d !== 'localhost')) return say([L('fail', 'uso: /scan <dominio>   ex.: /scan lojadojoao.com.br')])
+if (/^(localhost|127\.|10\.|0\.0\.0\.0|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(d)) return say([L('fail', 'alvo bloqueado: localhost e ips internos nao podem ser escaneados'), L('dim', 'protecao contra abuso. o skunkscan so analisa sites publicos.')])
+if (S.scansLeft <= 0) return say([L('fail', 'limite atingido: 5 varreduras por hora por ip'), L('dim', 'tente de novo em 42 min. o limite impede que o servico vire ferramenta de ataque.')])
+S.scansLeft--; renderQuota()
+return play(scanLines(d), () => {
+S.lastScan = d
+S.history = [{ ago: 'agora', domain: d, grade: 'D' }, ...S.history.filter((h) => h.domain !== d)]
+const e = EVOL[d] || []
+EVOL[d] = [...e.filter(([dt]) => dt !== today()), [today(), 'D']]
+renderRecent()
+})
+}
+if (c === '/corrigir') {
+const d = S.lastScan; if (!d) return needScan()
+return play([
+L('dim', 'gerando correcoes com ia para ' + d + '...', 900),
+L('title', '01  esconder a versao do servidor  (nginx.conf)', 300),
+L('code', 'server_tokens off;', 200),
+L('title', '02  criar registro dmarc  (dns, tipo TXT, nome _dmarc)', 300),
+L('code', 'v=DMARC1; p=quarantine; rua=mailto:dmarc@' + d, 200),
+L('title', '03  adicionar content-security-policy  (nginx.conf)', 300),
+L('code', "add_header Content-Security-Policy \"default-src 'self'\" always;", 200),
+L('title', '04  fechar subdominios expostos', 300),
+L('normal', 'coloque senha em dev. e staging., restrinja admin. por ip e remova o dns de antigo.', 200),
+L('title', '05  atualizar o nginx', 300),
+L('code', 'sudo apt update && sudo apt install nginx   # 1.26+ corrige as 2 cves', 200),
+L('ok', 'aplicando tudo, a nota estimada sobe de D para A', 100)
+])
+}
+if (c === '/perguntar') {
+const q = args.join(' ')
+if (!q) return say([L('fail', 'uso: /perguntar <pergunta>   ex.: /perguntar o que e dmarc?')])
+return typeAnswer(answer(q))
+}
+if (c === '/evolucao') {
+const d = clean(args[0]) || S.lastScan
+if (!d) return say([L('fail', 'uso: /evolucao <dominio>   ex.: /evolucao clinicavidaplena.com.br')])
+const s = evolOf(d)
+const first = s[0][1], last = s[s.length - 1][1]
+const msg = s.length < 2 ? 'so tem uma varredura. escaneie de novo depois de corrigir para ver a evolucao.' : first === last ? 'a nota ficou estavel.' : first > last ? 'a nota subiu de ' + first + ' para ' + last + '.' : 'a nota caiu de ' + first + ' para ' + last + '. o /monitorar teria avisado por e-mail.'
+return say([L('title', 'evolucao da nota  ' + d), L('chart', chart(s)), L('dim', msg)])
+}
+if (c === '/mapa') {
+const d = clean(args[0]) || S.lastScan || 'lojadojoao.com.br'
+S.mapDomain = d
+say([L('dim', 'abrindo o mapa de ' + d + '...')])
+return setTimeout(() => go('#/mapa'), 400)
+}
+if (c === '/radar') return go('#/radar')
+if (c === '/como-funciona') return go('#/como-funciona')
+if (c === '/docs') return go('#/docs')
+if (c === '/historico') return say([L('title', 'historico'), ...S.history.map((x) => L('normal', x.ago.padEnd(8) + x.domain.padEnd(30) + 'nota ' + x.grade))])
+if (c === '/comparar') {
+const a = clean(args[0]), b = clean(args[1])
+if (!a || !b) return say([L('fail', 'uso: /comparar <dominio1> <dominio2>')])
+const pa = profile(a), pb = profile(b)
+const row = (k, x, y) => L('normal', k.padEnd(24) + String(x).padEnd(28) + y, 160)
+return play([
+L('dim', 'carregando as duas varreduras...', 600),
+row('', a, b), row('nota', pa.grade, pb.grade), row('https', pa.https, pb.https),
+row('content-security-policy', pa.csp, pb.csp), row('dmarc', pa.dmarc, pb.dmarc),
+row('versao do servidor', pa.versao, pb.versao), row('subdominios expostos', pa.subs, pb.subs),
+row('sites imitando', pa.falsos, pb.falsos),
+L('dim', (pa.grade <= pb.grade ? a : b) + ' esta mais protegido', 100)
+])
+}
+if (c === '/monitorar') {
+const d = clean(args[0]), email = args[1]
+if (!d || !email || !email.includes('@')) return say([L('fail', 'uso: /monitorar <dominio> <email>')])
+return play([
+L('dim', 'agendando verificacao diaria...', 600),
+L('ok', 'monitoramento ativo para ' + d, 300),
+L('normal', 'roda todo dia as 03:00. se a nota cair ou surgir site imitando, voce recebe um e-mail.', 300),
+L('dim', 'enviando confirmacao para ' + email + ' via resend...', 900),
+L('ok', 'e-mail enviado', 100)
+])
+}
+if (c === '/relatorio') {
+const d = S.lastScan; if (!d) return needScan()
+return play([
+L('dim', 'montando relatorio...', 500),
+L('ok', 'relatorio-' + d + '.pdf pronto. abrindo para salvar...', 600)
+], () => { go('#/r/' + idFor(d)); setTimeout(() => window.print(), 500) })
+}
+if (c === '/compartilhar') {
+const d = S.lastScan; if (!d) return needScan()
+const id = idFor(d)
+try { navigator.clipboard.writeText('https://skunkscan.app/r/' + id) } catch (e) {}
+return play([
+L('dim', 'publicando resultado de ' + d + '...', 600),
+L('ok', 'https://skunkscan.app/r/' + id, 200),
+L('link', 'abrir a pagina do resultado', 200, '#/r/' + id),
+L('dim', 'link copiado. quem abrir ve a nota, os problemas e as correcoes, sem precisar de conta. expira em 30 dias.', 100)
+])
+}
+if (c === '/selo') {
+const d = clean(args[0]) || S.lastScan
+if (!d) return say([L('fail', 'uso: /selo <dominio>')])
+if (!knownDomains().includes(d)) return say([L('fail', d + ' ainda nao foi escaneado. use /scan ' + d)])
+const g = gradeOf(d)
+if (g !== 'A') return say([L('fail', 'selo indisponivel: ' + d + ' tem nota ' + g), L('dim', 'o selo so e liberado com nota A. use /corrigir para chegar la.')])
+return play([
+L('ok', d + ' tem nota A. selo liberado.', 300),
+L('normal', '┌──────────────────────────────┐', 60),
+L('normal', '│  [#]  verificado             │', 60),
+L('normal', '│       skunkscan   nota A     │', 60),
+L('normal', '└──────────────────────────────┘', 200),
+L('dim', 'cole no rodape do seu site:', 200),
+L('code', '<a href="https://skunkscan.app/v/' + d + '"><img src="https://skunkscan.app/selo/' + d + '.svg" alt="verificado pelo skunkscan, nota A"></a>', 200),
+L('dim', 'o selo e checado todo dia. se a nota cair, ele some sozinho.', 100)
+])
+}
+if (c === '/cli') return go('#/docs')
+if (c === '/termos' || c === '/privacidade' || c === '/cookies') { location.hash = c.slice(1); return }
+say([L('fail', 'comando nao encontrado: ' + c0 + '. digite /ajuda')])
+}
+
+let sugs = []
+const updateSugs = () => {
+const v = input.value
+sugs = v.startsWith('/') && !v.includes(' ') ? CMDS.filter(([n]) => n.startsWith(v.toLowerCase())) : []
+const box = $('sugs'); box.innerHTML = ''
+box.classList.toggle('on', sugs.length > 0 && !S.running)
+sugs.forEach(([n, a, d]) => {
+const b = el('button', 'sug'); b.type = 'button'
+const desc = el('span', 'dim', d); desc.style.marginLeft = 'auto'
+b.append(el('b', '', n), el('span', 'dim', a), desc)
+b.onclick = () => { input.value = n + ' '; updateSugs(); updateCursor(); input.focus() }
+box.appendChild(b)
+})
+if (sugs.length) { const tip = el('div', 'dim', 'tab para completar'); tip.style.cssText = 'padding:4px 12px;font-size:12px;color:#6f6f6f'; box.appendChild(tip) }
+}
+const updateCursor = () => $('cur').classList.toggle('hide', S.running || input.value !== '')
+
+input.addEventListener('input', () => { updateSugs(); updateCursor() })
+input.addEventListener('keydown', (e) => {
+if (e.key === 'Enter') { e.preventDefault(); run(input.value) }
+else if (e.key === 'Tab' && sugs.length) { e.preventDefault(); input.value = sugs[0][0] + ' '; updateSugs(); updateCursor() }
+else if (e.key === 'ArrowUp' && S.cmdHist.length) {
+e.preventDefault()
+S.histIdx = S.histIdx === -1 ? S.cmdHist.length - 1 : Math.max(0, S.histIdx - 1)
+input.value = S.cmdHist[S.histIdx]; updateSugs(); updateCursor()
+}
+})
+$('go').onclick = () => run(input.value)
+;['/ajuda', '/scan lojadojoao.com.br', '/corrigir', '/perguntar meu site esta seguro?', '/mapa', '/evolucao clinicavidaplena.com.br', '/compartilhar', '/relatorio', '/comparar lojadojoao.com.br padariabomgosto.com', '/selo clinicavidaplena.com.br', '/radar', '/scan localhost'].forEach((cmd) => {
+const b = el('button', 'chip', cmd); b.type = 'button'; b.onclick = () => { if (location.hash !== '' && location.hash !== '#/') go('#/'); run(cmd) }; $('chips').appendChild(b)
+})
+
+/* ---------- pagina do resultado ---------- */
+const renderResult = (d) => {
+const g = gradeOf(d)
+const issues = issuesFor(d, g)
+$('r-id').textContent = '/r/' + idFor(d)
+const L0 = $('r-letter'); L0.innerHTML = ''; L0.appendChild(pixelLetter(g, 22))
+$('r-dom').textContent = d
+$('r-date').textContent = 'varredura de ' + today() + '/2026 · analise passiva'
+const graves = issues.filter((i) => i.sev === 'grave').length
+const medios = issues.length - graves
+const cnt = $('r-counts'); cnt.innerHTML = ''
+;[[graves, 'graves'], [medios, 'medios'], [OKS.length, 'ok']].forEach(([n, l]) => { const b = el('div'); b.append(el('b', '', String(n)), el('span', 'dim', l)); cnt.appendChild(b) })
+const box = $('r-issues'); box.innerHTML = ''
+if (!issues.length) {
+const p = el('div', 'issue'); p.append(el('div', 'it', 'nenhum problema encontrado'), el('div', 'why', 'Este site cumpre todas as checagens. O selo verificado esta liberado.'))
+box.appendChild(p)
+}
+;[['grave', 'graves', 'corrija primeiro'], ['medio', 'medios', 'corrija em seguida']].forEach(([sev, label, hint]) => {
+const list = issues.filter((i) => i.sev === sev)
+if (!list.length) return
+const sec = el('section')
+const h = el('div', 'sevh')
+const tagEl = el('span', 'p', sev === 'grave' ? '[fail]' : '[ !! ]')
+tagEl.style.cssText = sev === 'grave' ? 'background:#f2f2f2;color:#0b0b0b' : 'text-decoration:underline'
+h.append(tagEl, el('span', '', list.length + ' ' + label), el('span', 'dim', '// ' + hint))
+sec.appendChild(h)
+list.forEach((it) => {
+const card = el('div', 'issue')
+const fix = el('div', 'fix'); const code = el('code', '', it.fix)
+const copy = el('button', '', 'copiar'); copy.type = 'button'
+copy.onclick = () => { try { navigator.clipboard.writeText(it.fix) } catch (e) {} copy.textContent = 'copiado'; setTimeout(() => { copy.textContent = 'copiar' }, 1400) }
+fix.append(code, copy)
+card.append(el('div', 'it', it.t), el('div', 'why', it.why), el('div', 'where', 'onde: ' + it.where), fix)
+sec.appendChild(card)
+})
+box.appendChild(sec)
+})
+$('r-chart').textContent = chart(evolOf(d))
+const ok = $('r-ok'); ok.innerHTML = ''
+OKS.forEach((t) => ok.appendChild(el('div', '', '[ ok ] ' + t)))
+$('r-copy').onclick = () => { try { navigator.clipboard.writeText('https://skunkscan.app/r/' + idFor(d)) } catch (e) {} $('r-copy').textContent = 'link copiado'; setTimeout(() => { $('r-copy').textContent = 'copiar link' }, 1400) }
+$('r-map').onclick = () => { S.mapDomain = d }
+}
+$('r-pdf').onclick = () => window.print()
+
+/* ---------- radar ---------- */
+const UF = [
+['RR', 2, 0], ['AP', 4, 0],
+['AM', 1, 1], ['PA', 3, 1], ['MA', 5, 1], ['CE', 6, 1], ['RN', 7, 1],
+['AC', 0, 2], ['RO', 1, 2], ['MT', 2, 2], ['TO', 4, 2], ['PI', 5, 2], ['PE', 6, 2], ['PB', 7, 2],
+['MS', 2, 3], ['GO', 3, 3], ['DF', 4, 3], ['BA', 5, 3], ['SE', 6, 3], ['AL', 7, 3],
+['SP', 3, 4], ['MG', 4, 4], ['ES', 5, 4],
+['PR', 3, 5], ['RJ', 4, 5],
+['SC', 3, 6],
+['RS', 2, 7]
+]
+const METRICS = [
+['dmarc', 'sem dmarc', 'dos sites nao tem dmarc'],
+['versao', 'versao exposta', 'mostram a versao do servidor'],
+['csp', 'sem csp', 'nao usam content-security-policy'],
+['subs', 'subdominio exposto', 'tem subdominio de teste exposto'],
+['phish', 'dominio imitando', 'tem dominio parecido registrado']
+]
+const BASE = { dmarc: 48, versao: 34, csp: 56, subs: 14, phish: 6 }
+const SPAN = { dmarc: 32, versao: 30, csp: 28, subs: 20, phish: 12 }
+const val = (uf, m) => (uf === 'BA' && m === 'dmarc') ? 62 : BASE[m] + hash(uf + m) % SPAN[m]
+const sitesOf = (uf) => 40 + hash(uf + 'n') % 420 + (uf === 'SP' ? 1800 : uf === 'RJ' || uf === 'MG' ? 700 : 0)
+const R = { metric: 'dmarc', uf: null }
+const shade = (v, lo, hi) => { const t = (v - lo) / Math.max(1, hi - lo); const c = Math.round(38 + t * (224 - 38)); return [c, t] }
+const renderRadar = () => {
+const m = METRICS.find((x) => x[0] === R.metric)
+const tabs = $('metrics'); tabs.innerHTML = ''
+METRICS.forEach(([k, label]) => {
+const b = el('button', k === R.metric ? 'on' : '', label); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', String(k === R.metric))
+b.onclick = () => { R.metric = k; renderRadar() }; tabs.appendChild(b)
+})
+const vals = UF.map(([u]) => val(u, R.metric))
+const lo = Math.min(...vals), hi = Math.max(...vals)
+const tiles = $('tiles'); tiles.innerHTML = ''
+UF.forEach(([u, c, r]) => {
+const v = val(u, R.metric)
+const [g, t] = shade(v, lo, hi)
+const b = el('button', 'tile' + (R.uf === u ? ' sel' : '')); b.type = 'button'
+b.style.gridColumn = String(c + 1); b.style.gridRow = String(r + 1)
+b.style.background = 'rgb(' + g + ',' + g + ',' + g + ')'; b.style.color = t > .55 ? '#0b0b0b' : '#f2f2f2'
+b.setAttribute('aria-label', u + ', ' + v + '%')
+b.append(document.createTextNode(u), el('small', '', v + '%'))
+b.onclick = () => { R.uf = R.uf === u ? null : u; renderRadar() }
+tiles.appendChild(b)
+})
+const total = UF.reduce((a, [u]) => a + sitesOf(u), 0)
+const nat = Math.round(UF.reduce((a, [u]) => a + val(u, R.metric) * sitesOf(u), 0) / total)
+if (R.uf) {
+$('rp-scope').textContent = 'estado selecionado: ' + R.uf
+$('rp-big').textContent = val(R.uf, R.metric) + '%'
+$('rp-label').textContent = m[2] + ' em ' + R.uf + ' (media nacional: ' + nat + '%)'
+$('rp-sites').textContent = sitesOf(R.uf).toLocaleString('pt-BR') + ' sites analisados'
+} else {
+$('rp-scope').textContent = 'media nacional'
+$('rp-big').textContent = nat + '%'
+$('rp-label').textContent = m[2]
+$('rp-sites').textContent = total.toLocaleString('pt-BR') + ' sites analisados em 27 estados'
+}
+const top = UF.map(([u]) => [u, val(u, R.metric)]).sort((a, b) => b[1] - a[1]).slice(0, 6)
+$('rp-rank').textContent = top.map(([u, v]) => u + '  ' + '█'.repeat(Math.round(v / 5)) + '░'.repeat(20 - Math.round(v / 5)) + '  ' + v + '%').join('\n')
+}
+
+/* ---------- mapa ---------- */
+const M = { nodes: [], edges: [], sel: null }
+const buildMap = (d) => {
+const name = d.split('.')[0]
+M.nodes = [
+{ id: 'root', label: d, cls: 'root', x: 50, y: 48, info: 'O dominio principal. Tudo o que aparece no mapa sai de informacao publica ligada a ele.' },
+{ id: 'www', label: 'www.' + d, cls: '', x: 32, y: 18, info: 'Site principal. HTTPS ativo e certificado valido ate 03/2027.' },
+{ id: 'loja', label: 'loja.' + d, cls: '', x: 54, y: 10, info: 'Loja virtual. HTTPS ativo.' },
+{ id: 'dev', label: 'dev.' + d, cls: 'risk', x: 76, y: 18, info: 'Ambiente de teste publicado na internet. Costuma ter dados de teste, erros detalhados e menos protecao. Coloque senha ou tire do ar.' },
+{ id: 'staging', label: 'staging.' + d, cls: 'risk', x: 86, y: 44, info: 'Copia do site em homologacao, aberta sem autenticacao. Qualquer pessoa acessa.' },
+{ id: 'admin', label: 'admin.' + d, cls: 'risk', x: 80, y: 74, info: 'Painel de login exposto para toda a internet. Alvo classico de tentativa de senha. Restrinja por IP.' },
+{ id: 'antigo', label: 'antigo.' + d, cls: 'off', x: 58, y: 88, info: 'Fora do ar, mas o DNS ainda aponta para ele. Se o servidor for de terceiros, alguem pode assumir esse endereco. Remova o registro.' },
+{ id: 'nginx', label: 'servidor nginx/1.18.0', cls: 'infra', x: 24, y: 52, info: 'Servidor web. Mostra a versao no header Server, o que entrega quais falhas procurar.' },
+{ id: 'cve1', label: 'CVE-2021-23017  alta', cls: 'risk', x: 9, y: 34, info: 'Falha no resolver DNS do nginx. Gravidade alta. Corrigida em versoes mais novas.' },
+{ id: 'cve2', label: 'CVE-2021-3618  media', cls: 'risk', x: 9, y: 70, info: 'Ataque ALPACA, que confunde conexoes TLS entre servicos. Gravidade media.' },
+{ id: 'mx', label: 'e-mail (mx)', cls: 'infra', x: 34, y: 82, info: 'Servidor de e-mail do dominio. SPF configurado.' },
+{ id: 'dmarc', label: 'dmarc ausente', cls: 'risk', x: 20, y: 93, info: 'Sem DMARC, qualquer um manda e-mail se passando pela empresa. Corrija com um registro TXT em _dmarc.' },
+{ id: 'phish', label: name + '-promo.com', cls: 'phish', x: 90, y: 92, info: 'Dominio parecido registrado ha 3 dias, por outra pessoa. Pode virar golpe com os seus clientes.' }
+]
+M.edges = [['root', 'www'], ['root', 'loja'], ['root', 'dev'], ['root', 'staging'], ['root', 'admin'], ['root', 'antigo'], ['root', 'nginx'], ['root', 'mx'], ['nginx', 'cve1'], ['nginx', 'cve2'], ['mx', 'dmarc'], ['root', 'phish', 'dash']]
+M.sel = null
+$('m-dom').textContent = d
+drawMap()
+$('mp-t').textContent = 'Clique em um no'
+$('mp-d').textContent = 'Cada caixa e algo exposto na internet. As de borda branca com ! sao riscos.'
+}
+const drawEdges = () => {
+const svg = $('edges'); svg.innerHTML = ''
+M.edges.forEach(([a, b, dash]) => {
+const A = M.nodes.find((n) => n.id === a), B = M.nodes.find((n) => n.id === b)
+const ln = document.createElementNS('http://www.w3.org/2000/svg', 'line')
+ln.setAttribute('x1', A.x); ln.setAttribute('y1', A.y); ln.setAttribute('x2', B.x); ln.setAttribute('y2', B.y)
+ln.setAttribute('stroke', B.cls === 'risk' || dash ? '#bdbdbd' : '#4a4a4a')
+ln.setAttribute('stroke-width', '1.5'); ln.setAttribute('vector-effect', 'non-scaling-stroke')
+if (dash || B.cls === 'risk') ln.setAttribute('stroke-dasharray', '5 4')
+svg.appendChild(ln)
+})
+}
+const drawMap = () => {
+const g = $('graph')
+g.querySelectorAll('.node').forEach((n) => n.remove())
+M.nodes.forEach((n) => {
+const b = el('button', 'node ' + n.cls + (M.sel === n.id ? ' sel' : ''), n.label); b.type = 'button'
+b.style.left = n.x + '%'; b.style.top = n.y + '%'
+let start = null, moved = false
+b.addEventListener('pointerdown', (e) => { start = [e.clientX, e.clientY]; moved = false; b.setPointerCapture(e.pointerId) })
+b.addEventListener('pointermove', (e) => {
+if (!start) return
+if (Math.abs(e.clientX - start[0]) + Math.abs(e.clientY - start[1]) > 3) moved = true
+if (!moved) return
+const r = g.getBoundingClientRect()
+const z = r.width / g.offsetWidth || 1
+n.x = Math.min(96, Math.max(4, ((e.clientX - r.left) / r.width) * 100))
+n.y = Math.min(96, Math.max(4, ((e.clientY - r.top) / r.height) * 100))
+b.style.left = n.x + '%'; b.style.top = n.y + '%'
+drawEdges()
+})
+b.addEventListener('pointerup', () => {
+start = null
+if (!moved) {
+M.sel = n.id
+g.querySelectorAll('.node').forEach((x) => x.classList.remove('sel')); b.classList.add('sel')
+$('mp-t').textContent = n.label
+$('mp-d').textContent = n.info
+}
+})
+g.appendChild(b)
+})
+drawEdges()
+}
+
+/* ---------- como funciona ---------- */
+;[
+['tls e headers', 'Le o certificado, confere a validade e o redirecionamento para HTTPS. Depois olha os headers de seguranca que o servidor manda, como HSTS e Content-Security-Policy, e se ele mostra a versao.', 'fonte: o proprio site, numa unica requisicao HTTPS'],
+['e-mail', 'Consulta no DNS os registros SPF, DKIM e DMARC. Juntos, eles impedem que alguem mande e-mail se passando pela empresa.', 'fonte: dns publico'],
+['subdominios esquecidos', 'Todo certificado HTTPS emitido no mundo fica registrado em logs publicos. O SkunkScan busca nesses logs os subdominios do site e testa quais ainda estao no ar.', 'fonte: certificate transparency (crt.sh)'],
+['vulnerabilidades conhecidas', 'Quando o servidor revela a versao, cruzamos com as bases publicas de vulnerabilidades e mostramos cada CVE com a gravidade.', 'fonte: osv.dev e nvd'],
+['dominios imitando o seu', 'Gera dezenas de variacoes do dominio, com letra trocada, hifen, outro final, e confere quais ja foram registradas e ha quanto tempo.', 'fonte: rdap, o whois moderno']
+].forEach(([t, d, s], i) => {
+const row = el('div', 'check')
+const c2 = el('div', 'c2'); c2.append(el('span', '', d), el('span', 'src', s))
+row.append(el('div', 'n', String(i + 1).padStart(2, '0')), el('div', 'c1', t), c2)
+$('checks').appendChild(row)
+})
+document.querySelectorAll('.toc a').forEach((a) => {
+a.onclick = (e) => { e.preventDefault(); const t = $('s-' + a.dataset.s); if (t) window.scrollTo({ top: t.getBoundingClientRect().top + window.scrollY - 70, behavior: 'smooth' }) }
+})
+
+/* ---------- rotas ---------- */
+const VIEWS = { home: 'v-home', result: 'v-result', radar: 'v-radar', mapa: 'v-mapa', como: 'v-como', docs: 'v-docs' }
+let current = null
+const route = () => {
+const h = location.hash
+if (['#termos', '#privacidade', '#cookies'].includes(h)) { if (!current) show('home'); return }
+const p = h.replace(/^#\/?/, '')
+if (p.startsWith('r/')) {
+const key = p.slice(2)
+const d = knownDomains().find((x) => idFor(x) === key) || (key.includes('.') ? key : 'lojadojoao.com.br')
+renderResult(d); return show('result')
+}
+if (p === 'radar') { renderRadar(); return show('radar') }
+if (p === 'mapa') { show('mapa'); return buildMap(S.mapDomain || S.lastScan || 'lojadojoao.com.br') }
+if (p === 'como-funciona') return show('como')
+if (p === 'docs') return show('docs')
+show('home')
+}
+const show = (v) => {
+Object.entries(VIEWS).forEach(([k, id]) => $(id).classList.toggle('on', k === v))
+document.querySelectorAll('.nav a').forEach((a) => a.classList.toggle('on', a.dataset.v === v))
+if (current !== v) window.scrollTo(0, 0)
+current = v
+if (v === 'home') setTimeout(() => input.focus(), 50)
+}
+
+/* ---------- documentos legais ---------- */
+const DOCS = ['termos', 'privacidade', 'cookies']
+const doc = $('doc')
+const syncDoc = () => {
+const p = location.hash.slice(1)
+const open = DOCS.includes(p)
+doc.classList.toggle('on', open)
+if (open) { doc.dataset.page = p; $('doc-t').textContent = 'less ' + p + '.md'; doc.querySelector('.scroll').scrollTop = 0; $('doc-close').focus() }
+}
+const closeDoc = () => { history.replaceState(null, '', location.pathname + (current && current !== 'home' ? '' : '')); syncDoc(); if (current === 'home') input.focus() }
+$('doc-close').onclick = closeDoc
+
+window.addEventListener('hashchange', () => { syncDoc(); route() })
+
+/* ---------- teclado global: fechar doc e konami ---------- */
+const KONAMI = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a']
+let kpos = 0
+document.addEventListener('keydown', (e) => {
+if (doc.classList.contains('on') && (e.key === 'Escape' || e.key === 'q')) { e.preventDefault(); closeDoc(); return }
+const k = e.key.length === 1 ? e.key.toLowerCase() : e.key
+kpos = k === KONAMI[kpos] ? kpos + 1 : (k === KONAMI[0] ? 1 : 0)
+if (kpos === KONAMI.length) {
+kpos = 0
+const on = document.body.classList.toggle('fosforo')
+if (current === 'home') say([L('ok', on ? 'modo fosforo ativado. bem-vindo a 1983.' : 'modo fosforo desligado. de volta ao presente.')])
+}
+})
+
+/* ---------- cookies ---------- */
+let seen = false
+try { seen = localStorage.getItem('skunkscan-cookies') === '1' } catch (e) {}
+if (!seen) $('cookie').classList.add('on')
+$('cookie-ok').onclick = () => { try { localStorage.setItem('skunkscan-cookies', '1') } catch (e) {} $('cookie').classList.remove('on') }
+
+/* ---------- inicio ---------- */
+say([
+L('dim', 'skunkscan v0.1  auditoria passiva de seguranca'),
+L('title', 'comandos'),
+...CMDS.slice(0, 12).map(([n, a, d]) => L('normal', (n + ' ' + a).padEnd(36) + d)),
+L('dim', '/ajuda mostra todos. tab completa, seta para cima repete, perguntas com ? vao para a ia.')
+])
+renderRecent(); renderQuota(); syncDoc(); route()
+</script>
+</body>
+</html>

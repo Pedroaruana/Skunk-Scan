@@ -1,5 +1,6 @@
 import { parseDomain } from './domain'
 import { sseResponse } from './sse'
+import { checkHost } from './ssrf'
 
 const cors = {
   'access-control-allow-origin': '*',
@@ -20,6 +21,16 @@ export default {
     const body = await req.json<{ domain?: unknown }>().catch(() => null)
     const domain = parseDomain(body?.domain)
     if (!domain) return json({ error: 'dominio invalido' }, 400)
+
+    const host = await checkHost(domain)
+    if (!host.ok) {
+      const msg = {
+        interno: 'dominio aponta para endereco interno',
+        'sem-dns': 'dominio nao resolve',
+        'dns-falhou': 'nao consegui consultar o dns agora',
+      }[host.reason]
+      return json({ error: msg }, host.reason === 'dns-falhou' ? 502 : 400)
+    }
 
     return sseResponse(async (send) => {
       await send('start', { domain })

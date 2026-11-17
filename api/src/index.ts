@@ -1,6 +1,8 @@
 import { parseDomain } from './domain'
 import { sseResponse } from './sse'
 import { checkHost } from './ssrf'
+import { checkWeb } from './checks/web'
+import type { Finding } from './types'
 
 const cors = {
   'access-control-allow-origin': '*',
@@ -33,9 +35,27 @@ export default {
     }
 
     return sseResponse(async (send) => {
+      const findings: Finding[] = []
       await send('start', { domain })
-      // os checks entram aqui nos proximos PRs
-      await send('done', { domain })
+
+      // cada check roda isolado: se um cair, o scan segue com os outros
+      await send('step', { id: 'web', label: 'TLS e headers' })
+      try {
+        const web = await checkWeb(domain)
+        if (!web) {
+          await send('warn', { id: 'web', message: 'o site nao respondeu a requisicao web' })
+        } else {
+          for (const f of web.findings) {
+            findings.push(f)
+            await send('finding', f)
+          }
+        }
+      } catch {
+        await send('warn', { id: 'web', message: 'falha ao checar TLS e headers' })
+      }
+
+      // os outros checks entram nos proximos PRs
+      await send('done', { domain, total: findings.length })
     }, cors)
   },
 }

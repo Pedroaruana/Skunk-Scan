@@ -6,6 +6,7 @@ import { checkDns } from './checks/dns'
 import { checkSubdomains } from './checks/subdomains'
 import { checkCves } from './checks/cves'
 import { checkLookalikes } from './checks/lookalikes'
+import { countFindings, gradeOf } from './scoring'
 import type { Finding } from './types'
 
 const cors = {
@@ -38,27 +39,36 @@ const routes: Record<string, (domain: string, run: Run) => Promise<void>> = {
   },
 }
 
-const stream = (domain: string, route: (domain: string, run: Run) => Promise<void>) =>
+const stream = (domain: string, route: (domain: string, run: Run) => Promise<void>, graded: boolean) =>
   sseResponse(async (send: Send) => {
-    let total = 0
+    const findings: Finding[] = []
+    const failed: string[] = []
     await send('start', { domain })
 
     const run: Run = async (id, label, check) => {
       await send('step', { id, label })
       try {
         const result = await check()
-        if (!result) return await send('warn', { id, message: 'o site nao respondeu a requisicao web' })
+        if (!result) {
+          failed.push(id)
+          return await send('warn', { id, message: 'o site nao respondeu a requisicao web' })
+        }
         for (const f of result) {
-          total++
+          findings.push(f)
           await send('finding', f)
         }
       } catch {
+        failed.push(id)
         await send('warn', { id, message: `falha ao checar ${label}` })
       }
     }
 
     await route(domain, run)
-    await send('done', { domain, total })
+
+    if (!graded) return await send('done', { domain, total: findings.length })
+    // sem resposta do site nao existe base pra nota: melhor nao dar nota do que dar uma enganosa
+    const grade = failed.includes('web') ? null : gradeOf(findings)
+    await send('done', { domain, total: findings.length, grade, ...countFindings(findings), incomplete: failed })
   }, cors)
 
 export default {
@@ -83,6 +93,6 @@ export default {
       return json({ error: msg }, host.reason === 'dns-falhou' ? 502 : 400)
     }
 
-    return stream(domain, route)
+    return stream(domain, route, pathname === '/api/scan')
   },
 }

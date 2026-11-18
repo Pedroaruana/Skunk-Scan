@@ -3,6 +3,7 @@ import { sseResponse } from './sse'
 import { checkHost } from './ssrf'
 import { checkWeb } from './checks/web'
 import { checkDns } from './checks/dns'
+import { checkSubdomains } from './checks/subdomains'
 import type { Finding } from './types'
 
 const cors = {
@@ -56,6 +57,7 @@ export default {
 
       await run('web', 'TLS e headers', async () => (await checkWeb(domain))?.findings ?? null)
       await run('dns', 'e-mail (SPF, DKIM, DMARC)', () => checkDns(domain))
+      await run('subdomains', 'subdominios e certificado', () => checkSubdomains(domain))
 
       // os outros checks entram nos proximos PRs
       await send('done', { domain, total: findings.length })

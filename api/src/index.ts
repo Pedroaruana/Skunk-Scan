@@ -4,6 +4,7 @@ import { checkHost } from './ssrf'
 import { checkWeb } from './checks/web'
 import { checkDns } from './checks/dns'
 import { checkSubdomains } from './checks/subdomains'
+import { checkCves } from './checks/cves'
 import type { Finding } from './types'
 
 const cors = {
@@ -55,9 +56,15 @@ export default {
         }
       }
 
-      await run('web', 'TLS e headers', async () => (await checkWeb(domain))?.findings ?? null)
+      let banners: string[] = []
+      await run('web', 'TLS e headers', async () => {
+        const web = await checkWeb(domain)
+        banners = web?.banners ?? []
+        return web?.findings ?? null
+      })
       await run('dns', 'e-mail (SPF, DKIM, DMARC)', () => checkDns(domain))
       await run('subdomains', 'subdominios e certificado', () => checkSubdomains(domain))
+      await run('cves', 'CVEs conhecidos', () => checkCves(banners))
 
       // os outros checks entram nos proximos PRs
       await send('done', { domain, total: findings.length })

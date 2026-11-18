@@ -33,7 +33,11 @@ const get = async (start: string): Promise<Fetched> => {
 
 const hstsMaxAge = (value: string): number => Number(/max-age=(\d+)/i.exec(value)?.[1] ?? 0)
 
-export type WebResult = { findings: Finding[]; server: string | null }
+// banners: valores de Server e X-Powered-By, usados pelo check de CVEs
+export type WebResult = { findings: Finding[]; banners: string[] }
+
+const bannersOf = (h: Headers): string[] =>
+  [h.get('server'), h.get('x-powered-by')].filter((v): v is string => !!v)
 
 // Retorna null quando o site nao responde nem em https nem em http
 export const checkWeb = async (domain: string): Promise<WebResult | null> => {
@@ -50,7 +54,7 @@ export const checkWeb = async (domain: string): Promise<WebResult | null> => {
     void http?.body?.cancel()
     if (!http) return null
     return {
-      server: http.headers.get('server'),
+      banners: bannersOf(http.headers),
       findings: [
         {
           id: 'https',
@@ -65,7 +69,7 @@ export const checkWeb = async (domain: string): Promise<WebResult | null> => {
 
   const findings: Finding[] = []
   const h = final.res.headers
-  const server = h.get('server')
+  const banners = bannersOf(h)
 
   if (final.url.protocol !== 'https:') {
     findings.push({
@@ -75,7 +79,7 @@ export const checkWeb = async (domain: string): Promise<WebResult | null> => {
       detail: `Os redirecionamentos levam para ${final.url.origin}, sem criptografia.`,
       fix: 'Redirecione todo o trafego para https e sirva o site so por https.',
     })
-    return { findings, server }
+    return { findings, banners }
   }
 
   findings.push({ id: 'https', severity: 'ok', title: 'HTTPS funcionando', detail: 'Certificado aceito e conexao criptografada.' })
@@ -152,8 +156,7 @@ export const checkWeb = async (domain: string): Promise<WebResult | null> => {
     findings.push({ id: 'clickjacking', severity: 'ok', title: 'Protecao contra clickjacking', detail: 'Embutir em iframe e restrito.' })
   }
 
-  const powered = h.get('x-powered-by')
-  const exposed = [server, powered].filter((v): v is string => !!v && /\d+\.\d+/.test(v))
+  const exposed = banners.filter((v) => /\d+\.\d+/.test(v))
   if (exposed.length > 0) {
     findings.push({
       id: 'version',
@@ -164,5 +167,5 @@ export const checkWeb = async (domain: string): Promise<WebResult | null> => {
     })
   }
 
-  return { findings, server }
+  return { findings, banners }
 }

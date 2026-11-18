@@ -2,6 +2,7 @@ import { parseDomain } from './domain'
 import { sseResponse } from './sse'
 import { checkHost } from './ssrf'
 import { checkWeb } from './checks/web'
+import { checkDns } from './checks/dns'
 import type { Finding } from './types'
 
 const cors = {
@@ -39,20 +40,22 @@ export default {
       await send('start', { domain })
 
       // cada check roda isolado: se um cair, o scan segue com os outros
-      await send('step', { id: 'web', label: 'TLS e headers' })
-      try {
-        const web = await checkWeb(domain)
-        if (!web) {
-          await send('warn', { id: 'web', message: 'o site nao respondeu a requisicao web' })
-        } else {
-          for (const f of web.findings) {
+      const run = async (id: string, label: string, check: () => Promise<Finding[] | null>) => {
+        await send('step', { id, label })
+        try {
+          const result = await check()
+          if (!result) return await send('warn', { id, message: 'o site nao respondeu a requisicao web' })
+          for (const f of result) {
             findings.push(f)
             await send('finding', f)
           }
+        } catch {
+          await send('warn', { id, message: `falha ao checar ${label}` })
         }
-      } catch {
-        await send('warn', { id: 'web', message: 'falha ao checar TLS e headers' })
       }
+
+      await run('web', 'TLS e headers', async () => (await checkWeb(domain))?.findings ?? null)
+      await run('dns', 'e-mail (SPF, DKIM, DMARC)', () => checkDns(domain))
 
       // os outros checks entram nos proximos PRs
       await send('done', { domain, total: findings.length })

@@ -1,4 +1,5 @@
-const DOH = 'https://cloudflare-dns.com/dns-query'
+import { doh } from './dns'
+
 const BLOCKED_SUFFIXES = ['.local', '.localhost', '.internal', '.lan', '.home', '.corp', '.intranet']
 
 export const isPrivateIPv4 = (ip: string): boolean => {
@@ -31,19 +32,6 @@ export const isPrivateIp = (ip: string): boolean => (ip.includes(':') ? isPrivat
 
 export const hasBlockedSuffix = (host: string): boolean => BLOCKED_SUFFIXES.some((s) => host.endsWith(s))
 
-type DohAnswer = { type: number; data: string }
-
-const query = async (host: string, type: 'A' | 'AAAA'): Promise<string[]> => {
-  const res = await fetch(`${DOH}?name=${encodeURIComponent(host)}&type=${type}`, {
-    headers: { accept: 'application/dns-json' },
-    signal: AbortSignal.timeout(4000),
-  })
-  if (!res.ok) throw new Error('falha no dns')
-  const body = await res.json<{ Answer?: DohAnswer[] }>()
-  const wanted = type === 'A' ? 1 : 28
-  return (body.Answer ?? []).filter((a) => a.type === wanted).map((a) => a.data)
-}
-
 export type HostCheck = { ok: true; ips: string[] } | { ok: false; reason: 'interno' | 'sem-dns' | 'dns-falhou' }
 
 // Resolve o host e recusa se qualquer endereco for interno, evitando SSRF por dominio apontado pra rede privada
@@ -51,7 +39,7 @@ export const checkHost = async (host: string): Promise<HostCheck> => {
   if (hasBlockedSuffix(host)) return { ok: false, reason: 'interno' }
   let ips: string[]
   try {
-    ips = (await Promise.all([query(host, 'A'), query(host, 'AAAA')])).flat()
+    ips = (await Promise.all([doh(host, 'A'), doh(host, 'AAAA')])).flat()
   } catch {
     return { ok: false, reason: 'dns-falhou' }
   }

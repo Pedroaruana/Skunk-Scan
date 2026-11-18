@@ -1,6 +1,6 @@
 const DOH = 'https://cloudflare-dns.com/dns-query'
 
-const RR = { A: 1, AAAA: 28, MX: 15, TXT: 16 } as const
+const RR = { A: 1, NS: 2, AAAA: 28, MX: 15, TXT: 16 } as const
 export type RecordType = keyof typeof RR
 
 type DohAnswer = { type: number; data: string }

@@ -1,10 +1,11 @@
 import { parseDomain } from './domain'
-import { sseResponse } from './sse'
+import { sseResponse, type Send } from './sse'
 import { checkHost } from './ssrf'
 import { checkWeb } from './checks/web'
 import { checkDns } from './checks/dns'
 import { checkSubdomains } from './checks/subdomains'
 import { checkCves } from './checks/cves'
+import { checkLookalikes } from './checks/lookalikes'
 import type { Finding } from './types'
 
 const cors = {
@@ -16,11 +17,56 @@ const cors = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...cors } })
 
+type Run = (id: string, label: string, check: () => Promise<Finding[] | null>) => Promise<void>
+
+// cada rota recebe o dominio ja validado e um run que isola cada check: se um cair, os outros seguem
+const routes: Record<string, (domain: string, run: Run) => Promise<void>> = {
+  '/api/scan': async (domain, run) => {
+    let banners: string[] = []
+    await run('web', 'TLS e headers', async () => {
+      const web = await checkWeb(domain)
+      banners = web?.banners ?? []
+      return web?.findings ?? null
+    })
+    await run('dns', 'e-mail (SPF, DKIM, DMARC)', () => checkDns(domain))
+    await run('subdomains', 'subdominios e certificado', () => checkSubdomains(domain))
+    await run('cves', 'CVEs conhecidos', () => checkCves(banners))
+  },
+  // fica fora do scan porque cada variacao e uma consulta DNS e o scan ja usa cerca de 43 dos 50 subrequests
+  '/api/lookalikes': async (domain, run) => {
+    await run('lookalikes', 'dominios parecidos', () => checkLookalikes(domain))
+  },
+}
+
+const stream = (domain: string, route: (domain: string, run: Run) => Promise<void>) =>
+  sseResponse(async (send: Send) => {
+    let total = 0
+    await send('start', { domain })
+
+    const run: Run = async (id, label, check) => {
+      await send('step', { id, label })
+      try {
+        const result = await check()
+        if (!result) return await send('warn', { id, message: 'o site nao respondeu a requisicao web' })
+        for (const f of result) {
+          total++
+          await send('finding', f)
+        }
+      } catch {
+        await send('warn', { id, message: `falha ao checar ${label}` })
+      }
+    }
+
+    await route(domain, run)
+    await send('done', { domain, total })
+  }, cors)
+
 export default {
   async fetch(req: Request): Promise<Response> {
     const { pathname } = new URL(req.url)
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors })
-    if (pathname !== '/api/scan') return json({ error: 'nao encontrado' }, 404)
+    const route = routes[pathname]
+    if (!route) return json({ error: 'nao encontrado' }, 404)
     if (req.method !== 'POST') return json({ error: 'use POST' }, 405)
 
     const body = await req.json<{ domain?: unknown }>().catch(() => null)
@@ -37,37 +83,6 @@ export default {
       return json({ error: msg }, host.reason === 'dns-falhou' ? 502 : 400)
     }
 
-    return sseResponse(async (send) => {
-      const findings: Finding[] = []
-      await send('start', { domain })
-
-      // cada check roda isolado: se um cair, o scan segue com os outros
-      const run = async (id: string, label: string, check: () => Promise<Finding[] | null>) => {
-        await send('step', { id, label })
-        try {
-          const result = await check()
-          if (!result) return await send('warn', { id, message: 'o site nao respondeu a requisicao web' })
-          for (const f of result) {
-            findings.push(f)
-            await send('finding', f)
-          }
-        } catch {
-          await send('warn', { id, message: `falha ao checar ${label}` })
-        }
-      }
-
-      let banners: string[] = []
-      await run('web', 'TLS e headers', async () => {
-        const web = await checkWeb(domain)
-        banners = web?.banners ?? []
-        return web?.findings ?? null
-      })
-      await run('dns', 'e-mail (SPF, DKIM, DMARC)', () => checkDns(domain))
-      await run('subdomains', 'subdominios e certificado', () => checkSubdomains(domain))
-      await run('cves', 'CVEs conhecidos', () => checkCves(banners))
-
-      // os outros checks entram nos proximos PRs
-      await send('done', { domain, total: findings.length })
-    }, cors)
+    return stream(domain, route)
   },
 }

@@ -8,18 +8,19 @@ import { checkCves } from './checks/cves'
 import { checkLookalikes } from './checks/lookalikes'
 import { countFindings, gradeOf } from './scoring'
 import { checkLimit, LIMIT, RateLimiter, type LimitResult } from './ratelimit'
+import { isId, loadReport, saveReport } from './reports'
 import type { Finding } from './types'
 
 const cors = {
   'access-control-allow-origin': '*',
-  'access-control-allow-methods': 'POST, OPTIONS',
+  'access-control-allow-methods': 'GET, POST, OPTIONS',
   'access-control-allow-headers': 'content-type',
   'access-control-expose-headers': 'retry-after, x-ratelimit-limit, x-ratelimit-remaining',
 }
 
 export { RateLimiter }
 
-type Env = { RATE_LIMITER: DurableObjectNamespace<RateLimiter> }
+type Env = { RATE_LIMITER: DurableObjectNamespace<RateLimiter>; DB: D1Database }
 
 const json = (body: unknown, status = 200, extra: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...cors, ...extra } })
@@ -45,7 +46,7 @@ const routes: Record<string, (domain: string, run: Run) => Promise<void>> = {
   },
 }
 
-const stream = (domain: string, route: (domain: string, run: Run) => Promise<void>, graded: boolean, headers: Record<string, string>) =>
+const stream = (domain: string, route: (domain: string, run: Run) => Promise<void>, graded: boolean, headers: Record<string, string>, db: D1Database) =>
   sseResponse(async (send: Send) => {
     const findings: Finding[] = []
     const failed: string[] = []
@@ -74,7 +75,10 @@ const stream = (domain: string, route: (domain: string, run: Run) => Promise<voi
     if (!graded) return await send('done', { domain, total: findings.length })
     // sem resposta do site nao existe base pra nota: melhor nao dar nota do que dar uma enganosa
     const grade = failed.includes('web') ? null : gradeOf(findings)
-    await send('done', { domain, total: findings.length, grade, ...countFindings(findings), incomplete: failed })
+    const counts = countFindings(findings)
+    // so guarda relatorio quando ha nota; sem ela nao tem o que mostrar na pagina publica
+    const id = grade ? await saveReport(db, { domain, grade, ...counts, findings }) : null
+    await send('done', { domain, total: findings.length, grade, ...counts, incomplete: failed, id })
   }, headers)
 
 const rateHeaders = (l: LimitResult) => ({
@@ -87,6 +91,12 @@ export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(req.url)
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors })
+    const report = pathname.startsWith('/api/r/') ? pathname.slice('/api/r/'.length) : null
+    if (report !== null) {
+      if (req.method !== 'GET') return json({ error: 'use GET' }, 405)
+      const found = isId(report) ? await loadReport(env.DB, report) : null
+      return found ? json(found) : json({ error: 'relatorio nao encontrado ou expirado' }, 404)
+    }
     const route = routes[pathname]
     if (!route) return json({ error: 'nao encontrado' }, 404)
     if (req.method !== 'POST') return json({ error: 'use POST' }, 405)
@@ -116,6 +126,6 @@ export default {
       return json({ error: msg }, host.reason === 'dns-falhou' ? 502 : 400)
     }
 
-    return stream(domain, route, pathname === '/api/scan', rateHeaders(limit))
+    return stream(domain, route, pathname === '/api/scan', rateHeaders(limit), env.DB)
   },
 }

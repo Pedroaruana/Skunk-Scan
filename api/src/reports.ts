@@ -3,6 +3,8 @@ import type { Finding } from './types'
 
 // os termos de uso prometem que o link expira em 30 dias
 export const RETENTION_MS = 30 * 24 * 60 * 60 * 1000
+// nota e data ficam mais tempo que o relatorio, so pra montar o grafico de evolucao
+export const HISTORY_RETENTION_MS = 180 * 24 * 60 * 60 * 1000
 
 export type Report = {
   id: string
@@ -22,7 +24,8 @@ export const newId = (): string =>
 
 export const isId = (value: string): boolean => /^[0-9a-f]{12}$/.test(value)
 
-// Salva o relatorio e apaga os vencidos de carona. Devolve null se o banco falhar:
+// Salva o relatorio e faz a limpeza de carona: passados 30 dias os achados sao esvaziados
+// (o link deixa de funcionar) e passados 180 dias a linha inteira some. Devolve null se o banco falhar:
 // perder o link nao pode derrubar um scan que ja rodou.
 export const saveReport = async (db: D1Database, r: Omit<Report, 'id' | 'createdAt'>): Promise<string | null> => {
   const id = newId()
@@ -32,7 +35,8 @@ export const saveReport = async (db: D1Database, r: Omit<Report, 'id' | 'created
       db
         .prepare('INSERT INTO scans (id, domain, grade, grave, medio, findings, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
         .bind(id, r.domain, r.grade, r.grave, r.medio, JSON.stringify(r.findings), now),
-      db.prepare('DELETE FROM scans WHERE created_at < ?').bind(now - RETENTION_MS),
+      db.prepare("UPDATE scans SET findings = '[]' WHERE created_at < ? AND findings != '[]'").bind(now - RETENTION_MS),
+      db.prepare('DELETE FROM scans WHERE created_at < ?').bind(now - HISTORY_RETENTION_MS),
     ])
     return id
   } catch (e) {
@@ -56,4 +60,16 @@ export const loadReport = async (db: D1Database, id: string): Promise<Report | n
     findings: JSON.parse(row.findings) as Finding[],
     createdAt: row.created_at,
   }
+}
+
+export type HistoryPoint = { grade: Grade; grave: number; medio: number; createdAt: number }
+
+// Ultimas varreduras de um dominio, da mais antiga pra mais nova (ordem do grafico).
+// Sem id nem achados: o link do relatorio continua sendo o unico acesso ao conteudo.
+export const loadHistory = async (db: D1Database, domain: string, limit = 30): Promise<HistoryPoint[]> => {
+  const { results } = await db
+    .prepare('SELECT grade, grave, medio, created_at FROM scans WHERE domain = ? AND created_at >= ? ORDER BY created_at DESC LIMIT ?')
+    .bind(domain, Date.now() - HISTORY_RETENTION_MS, limit)
+    .all<{ grade: Grade; grave: number; medio: number; created_at: number }>()
+  return results.map((r) => ({ grade: r.grade, grave: r.grave, medio: r.medio, createdAt: r.created_at })).reverse()
 }

@@ -709,17 +709,18 @@ f.append(top, dd, cc); $('feats').appendChild(f)
 })
 
 /* ---------- dados ---------- */
-const EVOL = {
-'lojadojoao.com.br': [['20/10', 'C'], ['03/11', 'C'], ['17/11', 'D']],
-'clinicavidaplena.com.br': [['13/10', 'D'], ['20/10', 'C'], ['27/10', 'B'], ['03/11', 'B'], ['10/11', 'A'], ['17/11', 'A']],
-'padariabomgosto.com': [['27/10', 'C'], ['10/11', 'B'], ['17/11', 'B']]
-}
+// historico das varreduras feitas neste navegador (links dos relatorios); a evolucao por dominio vem da API
+const HKEY = 'skunkscan-history'
+const loadLocalHistory = () => { try { const v = JSON.parse(localStorage.getItem(HKEY) || '[]'); return Array.isArray(v) ? v : [] } catch (e) { return [] } }
+const saveLocalHistory = () => { try { localStorage.setItem(HKEY, JSON.stringify(S.history.slice(0, 20))) } catch (e) {} }
+const ago = (at) => { const m = Math.floor((Date.now() - at) / 60000); return m < 1 ? 'agora' : m < 60 ? m + 'm' : m < 1440 ? Math.floor(m / 60) + 'h' : Math.floor(m / 1440) + 'd' }
+const dayLabel = (ms) => { const d = new Date(ms); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') }
 const S = {
 running: false, lastScan: null, lastId: null, scansLeft: 5, cmdHist: [], histIdx: -1, timer: null,
-history: [{ ago: '14m', domain: 'padariabomgosto.com', grade: 'B' }, { ago: '1h', domain: 'clinicavidaplena.com.br', grade: 'A' }, { ago: '2d', domain: 'lojadojoao.com.br', grade: 'C' }]
+history: loadLocalHistory()
 }
-const gradeOf = (d) => { const h = S.history.find((x) => x.domain === d); if (h) return h.grade; const e = EVOL[d]; return e ? e[e.length - 1][1] : 'D' }
-const knownDomains = () => [...new Set([...Object.keys(EVOL), ...S.history.map((h) => h.domain)])]
+const gradeOf = (d) => S.history.find((x) => x.domain === d)?.grade || 'D'
+const knownDomains = () => [...new Set(S.history.map((h) => h.domain))]
 
 /* ---------- grafico ascii da evolucao ---------- */
 const chart = (series) => {
@@ -745,7 +746,14 @@ series.forEach(([d], i) => { const start = cols[i] + 4 - 2; for (let k = 0; k < 
 lines.push(labels.join(''))
 return lines.join('\n')
 }
-const evolOf = (d) => EVOL[d] || [[today(), gradeOf(d)]]
+const fetchEvolution = async (domain) => {
+const res = await fetch(API + '/api/history/' + encodeURIComponent(domain))
+if (!res.ok) throw new Error('historico indisponivel')
+const { scans } = await res.json()
+const byDay = new Map()
+scans.forEach((x) => byDay.set(dayLabel(x.createdAt), x.grade))
+return [...byDay].slice(-8)
+}
 
 /* ---------- terminal ---------- */
 const CMDS = [
@@ -782,9 +790,10 @@ return d
 const say = (ls) => ls.forEach(print)
 const renderRecent = () => {
 const r = $('recent'); r.innerHTML = ''
+if (!S.history.length) r.appendChild(el('div', 'dim', 'nenhuma ainda. use /scan seusite.com.br'))
 S.history.slice(0, 3).forEach((h) => {
 const row = el('div'); row.style.cssText = 'display:flex;gap:18px'
-const a = el('span', 'dim', h.ago); a.style.width = '64px'
+const a = el('span', 'dim', ago(h.at)); a.style.width = '64px'
 const g = el('span', '', h.grade); g.style.cssText = 'margin-left:auto;font-weight:700'
 row.append(a, el('span', '', h.domain), g); r.appendChild(row)
 })
@@ -893,8 +902,8 @@ if (scan.grade) {
 const total = scan.grave + scan.medio
 print(L('grade', 'nota final: ' + scan.grade + '   ' + total + (total === 1 ? ' problema, ' : ' problemas, ') + scan.grave + (scan.grave === 1 ? ' grave' : ' graves')))
 S.lastScan = d
-S.history = [{ ago: 'agora', domain: d, grade: scan.grade }, ...S.history.filter((h) => h.domain !== d)]
-EVOL[d] = [...(EVOL[d] || []).filter(([dt]) => dt !== today()), [today(), scan.grade]]
+S.history = [{ id: scan.id, domain: d, grade: scan.grade, at: Date.now() }, ...S.history.filter((h) => h.domain !== d)]
+saveLocalHistory()
 renderRecent()
 S.lastId = scan.id
 print(L('dim', 'proximo passo: /corrigir, /mapa, /compartilhar ou /perguntar'))
@@ -1012,11 +1021,15 @@ return typeAnswer(answer(q))
 }
 if (c === '/evolucao') {
 const d = clean(args[0]) || S.lastScan
-if (!d) return say([L('fail', 'uso: /evolucao <dominio>   ex.: /evolucao clinicavidaplena.com.br')])
-const s = evolOf(d)
-const first = s[0][1], last = s[s.length - 1][1]
-const msg = s.length < 2 ? 'so tem uma varredura. escaneie de novo depois de corrigir para ver a evolucao.' : first === last ? 'a nota ficou estavel.' : first > last ? 'a nota subiu de ' + first + ' para ' + last + '.' : 'a nota caiu de ' + first + ' para ' + last + '. o /monitorar teria avisado por e-mail.'
-return say([L('title', 'evolucao da nota  ' + d), L('chart', chart(s)), L('dim', msg)])
+if (!d) return say([L('fail', 'uso: /evolucao <dominio>   ex.: /evolucao lojadojoao.com.br')])
+setRunning(true, false)
+print(L('dim', 'buscando o historico de ' + d + '...'))
+return fetchEvolution(d).then((sr) => {
+if (!sr.length) return say([L('fail', 'nenhuma varredura de ' + d + ' no historico. use /scan ' + d)])
+const first = sr[0][1], last = sr[sr.length - 1][1]
+const msg = sr.length < 2 ? 'so tem uma varredura. escaneie de novo depois de corrigir para ver a evolucao.' : first === last ? 'a nota ficou estavel.' : first > last ? 'a nota subiu de ' + first + ' para ' + last + '.' : 'a nota caiu de ' + first + ' para ' + last + '.'
+say([L('title', 'evolucao da nota  ' + d), L('chart', chart(sr)), L('dim', msg)])
+}).catch(() => say([L('fail', 'nao consegui buscar o historico agora. tente de novo em instantes.')])).finally(() => setRunning(false))
 }
 if (c === '/mapa') {
 const d = clean(args[0]) || S.lastScan || 'lojadojoao.com.br'
@@ -1027,7 +1040,10 @@ return setTimeout(() => go('#/mapa'), 400)
 if (c === '/radar') return go('#/radar')
 if (c === '/como-funciona') return go('#/como-funciona')
 if (c === '/docs') return go('#/docs')
-if (c === '/historico') return say([L('title', 'historico'), ...S.history.map((x) => L('normal', x.ago.padEnd(8) + x.domain.padEnd(30) + 'nota ' + x.grade))])
+if (c === '/historico') {
+if (!S.history.length) return say([L('dim', 'nenhuma varredura neste navegador ainda. use /scan <dominio>')])
+return say([L('title', 'historico (neste navegador, clique para abrir o relatorio)'), ...S.history.map((x) => L(x.id ? 'link' : 'normal', ago(x.at).padEnd(8) + x.domain.padEnd(30) + 'nota ' + x.grade, 0, x.id ? '#/r/' + x.id : undefined))])
+}
 if (c === '/comparar') {
 const a = clean(args[0]), b = clean(args[1])
 if (!a || !b) return say([L('fail', 'uso: /comparar <dominio1> <dominio2>')])
@@ -1123,7 +1139,7 @@ input.value = S.cmdHist[S.histIdx]; updateSugs(); updateCursor()
 }
 })
 $('go').onclick = () => run(input.value)
-;['/ajuda', '/scan lojadojoao.com.br', '/corrigir', '/perguntar meu site esta seguro?', '/mapa', '/evolucao clinicavidaplena.com.br', '/compartilhar', '/relatorio', '/comparar lojadojoao.com.br padariabomgosto.com', '/selo clinicavidaplena.com.br', '/radar', '/scan localhost'].forEach((cmd) => {
+;['/ajuda', '/scan lojadojoao.com.br', '/corrigir', '/perguntar meu site esta seguro?', '/mapa', '/evolucao', '/compartilhar', '/relatorio', '/comparar lojadojoao.com.br padariabomgosto.com', '/selo', '/radar', '/scan localhost'].forEach((cmd) => {
 const b = el('button', 'chip', cmd); b.type = 'button'; b.onclick = () => { if (location.hash !== '' && location.hash !== '#/') go('#/'); run(cmd) }; $('chips').appendChild(b)
 })
 
@@ -1133,6 +1149,7 @@ const fmtDate = (ms) => { const d = new Date(ms); return String(d.getDate()).pad
 
 // estado vazio da pagina: carregando ou erro
 const resultMessage = (text) => {
+$('r-chart').parentNode.parentNode.style.display = 'none'
 $('r-id').textContent = ''
 $('r-letter').innerHTML = ''
 $('r-dom').textContent = text
@@ -1155,6 +1172,9 @@ return card
 }
 
 const renderReport = (r) => {
+const evo = $('r-chart').parentNode.parentNode
+evo.style.display = 'none'
+fetchEvolution(r.domain).then((sr) => { if (sr.length >= 2 && $('r-dom').textContent === r.domain) { $('r-chart').textContent = chart(sr); evo.style.display = '' } }).catch(() => {})
 const byKind = (s) => r.findings.filter((f) => f.severity === s)
 $('r-id').textContent = '/r/' + r.id
 const L0 = $('r-letter'); L0.innerHTML = ''; L0.appendChild(pixelLetter(r.grade, 22))

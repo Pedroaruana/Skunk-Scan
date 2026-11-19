@@ -369,7 +369,7 @@ html{background:#fff}
 <div class="rbody">
 <div class="rmain" id="r-issues"></div>
 <aside class="rside">
-<div><div class="h">Evolucao da nota</div><div class="chartbox"><pre id="r-chart"></pre></div></div>
+<div style="display:none"><div class="h">Evolucao da nota</div><div class="chartbox"><pre id="r-chart"></pre></div></div>
 <div><div class="h">O que esta certo</div><div class="oklist" id="r-ok"></div></div>
 <div class="dim" style="font-size:12px">Analise passiva: so foram lidas informacoes publicas do site. Revise cada correcao antes de aplicar.</div>
 </aside>
@@ -650,7 +650,6 @@ const hash = (s) => s.split('').reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 
 const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 const clean = (s) => (s || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '').toLowerCase()
 const today = () => { const d = new Date(); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') }
-const idFor = (d) => hash(d).toString(36).slice(0, 6)
 
 /* ---------- pixel art ---------- */
 const FONT = {
@@ -715,23 +714,8 @@ const EVOL = {
 'clinicavidaplena.com.br': [['13/10', 'D'], ['20/10', 'C'], ['27/10', 'B'], ['03/11', 'B'], ['10/11', 'A'], ['17/11', 'A']],
 'padariabomgosto.com': [['27/10', 'C'], ['10/11', 'B'], ['17/11', 'B']]
 }
-const OKS = ['https ativo, redireciona http', 'certificado valido ate 03/2027', 'hsts configurado', 'spf encontrado']
-const issuesFor = (d, grade) => {
-const name = d.split('.')[0]
-const all = {
-versao: { sev: 'grave', t: 'servidor expoe a versao: nginx/1.18.0', why: 'Quem ataca sabe exatamente quais falhas procurar.', fix: 'server_tokens off;', where: 'nginx.conf' },
-cve: { sev: 'grave', t: '2 vulnerabilidades conhecidas no nginx 1.18.0', why: 'CVE-2021-23017 (alta) e CVE-2021-3618 (media) ja tem correcao publica.', fix: 'sudo apt update && sudo apt install nginx', where: 'servidor' },
-phish: { sev: 'grave', t: 'dominio imitando o seu: ' + name + '-promo.com', why: 'Registrado ha 3 dias. Pode ser usado para aplicar golpe nos seus clientes.', fix: 'Denuncie ao registrador do dominio e avise seus clientes pelos canais oficiais.', where: 'acao' },
-dmarc: { sev: 'medio', t: 'dmarc ausente', why: 'Qualquer um pode mandar e-mail se passando pela sua empresa.', fix: 'v=DMARC1; p=quarantine; rua=mailto:dmarc@' + d, where: 'dns, registro TXT em _dmarc' },
-csp: { sev: 'medio', t: 'content-security-policy ausente', why: 'Facilita ataques que injetam scripts na pagina.', fix: "add_header Content-Security-Policy \"default-src 'self'\" always;", where: 'nginx.conf' },
-subs: { sev: 'medio', t: '3 subdominios expostos: dev, staging, admin', why: 'Ambientes de teste e paineis costumam ter menos protecao que o site principal.', fix: 'Proteja com senha ou restrinja por IP. Remova o DNS de antigo.' + d, where: 'dns e servidor' }
-}
-const pick = { D: ['versao', 'cve', 'phish', 'dmarc', 'csp', 'subs'], C: ['versao', 'dmarc', 'csp', 'subs'], B: ['dmarc', 'csp'], A: [] }[grade]
-return pick.map((k) => all[k])
-}
-
 const S = {
-running: false, lastScan: null, scansLeft: 5, cmdHist: [], histIdx: -1, timer: null,
+running: false, lastScan: null, lastId: null, scansLeft: 5, cmdHist: [], histIdx: -1, timer: null,
 history: [{ ago: '14m', domain: 'padariabomgosto.com', grade: 'B' }, { ago: '1h', domain: 'clinicavidaplena.com.br', grade: 'A' }, { ago: '2d', domain: 'lojadojoao.com.br', grade: 'C' }]
 }
 const gradeOf = (d) => { const h = S.history.find((x) => x.domain === d); if (h) return h.grade; const e = EVOL[d]; return e ? e[e.length - 1][1] : 'D' }
@@ -906,11 +890,13 @@ await callApi('/api/lookalikes', d, progress).catch((e) => print(L('warn', 'domi
 setProgress(100)
 if (!scan) return print(L('fail', 'a varredura terminou sem resultado. tente de novo.'))
 if (scan.grade) {
-print(L('grade', 'nota final: ' + scan.grade + '   ' + (scan.grave + scan.medio) + ' problemas, ' + scan.grave + ' graves'))
+const total = scan.grave + scan.medio
+print(L('grade', 'nota final: ' + scan.grade + '   ' + total + (total === 1 ? ' problema, ' : ' problemas, ') + scan.grave + (scan.grave === 1 ? ' grave' : ' graves')))
 S.lastScan = d
 S.history = [{ ago: 'agora', domain: d, grade: scan.grade }, ...S.history.filter((h) => h.domain !== d)]
 EVOL[d] = [...(EVOL[d] || []).filter(([dt]) => dt !== today()), [today(), scan.grade]]
 renderRecent()
+S.lastId = scan.id
 print(L('dim', 'proximo passo: /corrigir, /mapa, /compartilhar ou /perguntar'))
 } else {
 print(L('fail', 'sem nota: o site nao respondeu a requisicao web, entao nao ha base para avaliar.'))
@@ -1069,18 +1055,20 @@ L('ok', 'e-mail enviado', 100)
 }
 if (c === '/relatorio') {
 const d = S.lastScan; if (!d) return needScan()
+if (!S.lastId) return say([L('fail', 'esse scan nao gerou relatorio salvo. rode /scan de novo.')])
 return play([
 L('dim', 'montando relatorio...', 500),
 L('ok', 'relatorio-' + d + '.pdf pronto. abrindo para salvar...', 600)
-], () => { go('#/r/' + idFor(d)); setTimeout(() => window.print(), 500) })
+], () => { go('#/r/' + S.lastId); setTimeout(() => window.print(), 1500) })
 }
 if (c === '/compartilhar') {
 const d = S.lastScan; if (!d) return needScan()
-const id = idFor(d)
-try { navigator.clipboard.writeText('https://skunkscan.app/r/' + id) } catch (e) {}
+const id = S.lastId
+if (!id) return say([L('fail', 'esse scan nao gerou relatorio salvo. rode /scan de novo.')])
+try { navigator.clipboard.writeText(shareUrl(id)) } catch (e) {}
 return play([
 L('dim', 'publicando resultado de ' + d + '...', 600),
-L('ok', 'https://skunkscan.app/r/' + id, 200),
+L('ok', shareUrl(id), 200),
 L('link', 'abrir a pagina do resultado', 200, '#/r/' + id),
 L('dim', 'link copiado. quem abrir ve a nota, os problemas e as correcoes, sem precisar de conta. expira em 30 dias.', 100)
 ])
@@ -1140,48 +1128,72 @@ const b = el('button', 'chip', cmd); b.type = 'button'; b.onclick = () => { if (
 })
 
 /* ---------- pagina do resultado ---------- */
-const renderResult = (d) => {
-const g = gradeOf(d)
-const issues = issuesFor(d, g)
-$('r-id').textContent = '/r/' + idFor(d)
-const L0 = $('r-letter'); L0.innerHTML = ''; L0.appendChild(pixelLetter(g, 22))
-$('r-dom').textContent = d
-$('r-date').textContent = 'varredura de ' + today() + '/2026 · analise passiva'
-const graves = issues.filter((i) => i.sev === 'grave').length
-const medios = issues.length - graves
+const shareUrl = (id) => location.origin + location.pathname + '#/r/' + id
+const fmtDate = (ms) => { const d = new Date(ms); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear() }
+
+// estado vazio da pagina: carregando ou erro
+const resultMessage = (text) => {
+$('r-id').textContent = ''
+$('r-letter').innerHTML = ''
+$('r-dom').textContent = text
+$('r-date').textContent = ''
+$('r-counts').innerHTML = ''
+$('r-issues').innerHTML = ''
+$('r-ok').innerHTML = ''
+}
+
+const issueCard = (f) => {
+const card = el('div', 'issue')
+card.append(el('div', 'it', f.title), el('div', 'why', f.detail))
+if (f.fix) {
+const fix = el('div', 'fix'); const code = el('code', '', f.fix)
+const copy = el('button', '', 'copiar'); copy.type = 'button'
+copy.onclick = () => { try { navigator.clipboard.writeText(f.fix) } catch (e) {} copy.textContent = 'copiado'; setTimeout(() => { copy.textContent = 'copiar' }, 1400) }
+fix.append(code, copy); card.appendChild(fix)
+}
+return card
+}
+
+const renderReport = (r) => {
+const byKind = (s) => r.findings.filter((f) => f.severity === s)
+$('r-id').textContent = '/r/' + r.id
+const L0 = $('r-letter'); L0.innerHTML = ''; L0.appendChild(pixelLetter(r.grade, 22))
+$('r-dom').textContent = r.domain
+$('r-date').textContent = 'varredura de ' + fmtDate(r.createdAt) + ' · analise passiva'
 const cnt = $('r-counts'); cnt.innerHTML = ''
-;[[graves, 'graves'], [medios, 'medios'], [OKS.length, 'ok']].forEach(([n, l]) => { const b = el('div'); b.append(el('b', '', String(n)), el('span', 'dim', l)); cnt.appendChild(b) })
+;[[r.grave, 'graves'], [r.medio, 'medios'], [byKind('ok').length, 'ok']].forEach(([n, l]) => { const b = el('div'); b.append(el('b', '', String(n)), el('span', 'dim', l)); cnt.appendChild(b) })
 const box = $('r-issues'); box.innerHTML = ''
-if (!issues.length) {
-const p = el('div', 'issue'); p.append(el('div', 'it', 'nenhum problema encontrado'), el('div', 'why', 'Este site cumpre todas as checagens. O selo verificado esta liberado.'))
+if (!r.grave && !r.medio) {
+const p = el('div', 'issue'); p.append(el('div', 'it', 'nenhum problema encontrado'), el('div', 'why', 'Este site passou em todas as checagens que a analise passiva consegue fazer.'))
 box.appendChild(p)
 }
-;[['grave', 'graves', 'corrija primeiro'], ['medio', 'medios', 'corrija em seguida']].forEach(([sev, label, hint]) => {
-const list = issues.filter((i) => i.sev === sev)
+;[['grave', 'graves', 'corrija primeiro'], ['medio', 'medios', 'corrija em seguida'], ['info', 'informativos', 'nao entram na nota']].forEach(([sev, label, hint]) => {
+const list = byKind(sev)
 if (!list.length) return
 const sec = el('section')
 const h = el('div', 'sevh')
-const tagEl = el('span', 'p', sev === 'grave' ? '[fail]' : '[ !! ]')
-tagEl.style.cssText = sev === 'grave' ? 'background:#f2f2f2;color:#0b0b0b' : 'text-decoration:underline'
+const tagEl = el('span', 'p', sev === 'grave' ? '[fail]' : sev === 'medio' ? '[ !! ]' : '[ i  ]')
+tagEl.style.cssText = sev === 'grave' ? 'background:#f2f2f2;color:#0b0b0b' : sev === 'medio' ? 'text-decoration:underline' : ''
 h.append(tagEl, el('span', '', list.length + ' ' + label), el('span', 'dim', '// ' + hint))
 sec.appendChild(h)
-list.forEach((it) => {
-const card = el('div', 'issue')
-const fix = el('div', 'fix'); const code = el('code', '', it.fix)
-const copy = el('button', '', 'copiar'); copy.type = 'button'
-copy.onclick = () => { try { navigator.clipboard.writeText(it.fix) } catch (e) {} copy.textContent = 'copiado'; setTimeout(() => { copy.textContent = 'copiar' }, 1400) }
-fix.append(code, copy)
-card.append(el('div', 'it', it.t), el('div', 'why', it.why), el('div', 'where', 'onde: ' + it.where), fix)
-sec.appendChild(card)
-})
+list.forEach((f) => sec.appendChild(issueCard(f)))
 box.appendChild(sec)
 })
-$('r-chart').textContent = chart(evolOf(d))
 const ok = $('r-ok'); ok.innerHTML = ''
-OKS.forEach((t) => ok.appendChild(el('div', '', '[ ok ] ' + t)))
-$('r-copy').onclick = () => { try { navigator.clipboard.writeText('https://skunkscan.app/r/' + idFor(d)) } catch (e) {} $('r-copy').textContent = 'link copiado'; setTimeout(() => { $('r-copy').textContent = 'copiar link' }, 1400) }
-$('r-map').onclick = () => { S.mapDomain = d }
+byKind('ok').forEach((f) => ok.appendChild(el('div', '', '[ ok ] ' + f.title)))
+$('r-copy').onclick = () => { try { navigator.clipboard.writeText(shareUrl(r.id)) } catch (e) {} $('r-copy').textContent = 'link copiado'; setTimeout(() => { $('r-copy').textContent = 'copiar link' }, 1400) }
+$('r-map').onclick = () => { S.mapDomain = r.domain }
 }
+
+const loadReportPage = async (id) => {
+resultMessage('carregando relatorio...')
+try {
+const res = await fetch(API + '/api/r/' + encodeURIComponent(id))
+if (!res.ok) return resultMessage(res.status === 404 ? 'relatorio nao encontrado ou expirado (os links valem 30 dias)' : 'nao consegui carregar o relatorio agora')
+renderReport(await res.json())
+} catch (e) { resultMessage('nao consegui falar com a api. tente de novo em instantes.') }
+}
+
 $('r-pdf').onclick = () => window.print()
 
 /* ---------- radar ---------- */
@@ -1342,9 +1354,7 @@ const h = location.hash
 if (['#termos', '#privacidade', '#cookies'].includes(h)) { if (!current) show('home'); return }
 const p = h.replace(/^#\/?/, '')
 if (p.startsWith('r/')) {
-const key = p.slice(2)
-const d = knownDomains().find((x) => idFor(x) === key) || (key.includes('.') ? key : 'lojadojoao.com.br')
-renderResult(d); return show('result')
+show('result'); return loadReportPage(p.slice(2))
 }
 if (p === 'radar') { renderRadar(); return show('radar') }
 if (p === 'mapa') { show('mapa'); return buildMap(S.mapDomain || S.lastScan || 'lojadojoao.com.br') }

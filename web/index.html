@@ -842,40 +842,85 @@ tick()
 }, 700)
 }
 
-const scanLines = (d) => {
-const name = d.split('.')[0]
-const typo = name.includes('o') ? name.replace(/o(?!.*o)/, '0') : name + 's'
-return [
-L('dim', 'resolvendo ' + d + '... 172.67.14.201', 500),
-L('title', '[1/5] transporte e headers', 450),
-L('ok', 'https ativo, redireciona http', 220),
-L('ok', 'certificado valido ate 03/2027', 220),
-L('ok', 'hsts configurado', 220),
-L('warn', 'content-security-policy ausente', 260),
-L('fail', 'servidor expoe versao: nginx/1.18.0', 300),
-L('title', '[2/5] e-mail', 450),
-L('ok', 'spf encontrado', 220),
-L('warn', 'dmarc ausente: qualquer um pode enviar e-mail como @' + d, 300),
-L('title', '[3/5] subdominios (registros publicos de certificados)', 600),
-L('dim', '14 certificados, 6 subdominios unicos', 400),
-L('normal', d, 90),
-L('normal', '├── www.' + d + '        ativo', 90),
-L('normal', '├── loja.' + d + '       ativo', 90),
-L('normal', '├── dev.' + d + '        ativo    [!!] ambiente de teste exposto', 120),
-L('normal', '├── staging.' + d + '    ativo    [!!] sem autenticacao', 120),
-L('normal', '├── admin.' + d + '      ativo    [!!] painel de login publico', 120),
-L('normal', '└── antigo.' + d + '     fora do ar', 200),
-L('title', '[4/5] vulnerabilidades conhecidas (nginx 1.18.0)', 600),
-L('fail', 'CVE-2021-23017   alta    falha no resolver dns do nginx', 260),
-L('warn', 'CVE-2021-3618    media   ataque alpaca em tls', 260),
-L('title', '[5/5] dominios imitando o seu', 500),
-L('dim', 'testando 48 variacoes...', 700),
-L('fail', name + '-promo.com          registrado ha 3 dias    suspeito', 260),
-L('warn', typo + '.com.br        registrado ha 21 dias', 260),
-L('dim', '46 variacoes livres', 300),
-L('grade', 'nota final: D   6 problemas, 3 graves', 400),
-L('dim', 'proximo passo: /corrigir, /mapa, /compartilhar ou /perguntar', 100)
-]
+/* ---------- varredura real (SSE) ---------- */
+// em producao troque pelo endereco real do Worker (definido no deploy)
+const API = ['localhost', '127.0.0.1', ''].includes(location.hostname) ? 'http://localhost:8787' : 'https://skunkscan-api.SEU-SUBDOMINIO.workers.dev'
+const SEV = { ok: 'ok', medio: 'warn', grave: 'fail', info: 'dim' }
+const STEPS = 5
+
+// le o stream e chama on(evento, dados) a cada bloco "event: x / data: {...}"
+const readSse = async (res, on) => {
+const reader = res.body.getReader(), dec = new TextDecoder()
+let buf = ''
+for (;;) {
+const { done, value } = await reader.read()
+if (done) break
+buf += dec.decode(value, { stream: true })
+let i
+while ((i = buf.indexOf('\n\n')) !== -1) {
+const block = buf.slice(0, i); buf = buf.slice(i + 2)
+const ev = /^event: (.*)$/m.exec(block)?.[1], data = /^data: (.*)$/m.exec(block)?.[1]
+if (ev && data) on(ev, JSON.parse(data))
+}
+}
+}
+
+const printFinding = (f) => {
+print(L(SEV[f.severity] || 'normal', f.title))
+if (f.severity !== 'ok' && f.detail) print(L('dim', f.detail))
+if (f.fix) print(L('code', f.fix))
+}
+
+// chama uma rota da API e imprime os eventos conforme chegam. Devolve o evento done.
+const callApi = async (path, domain, progress) => {
+let res
+try {
+res = await fetch(API + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ domain }) })
+} catch (e) { throw new Error('nao consegui falar com a api. tente de novo em instantes.') }
+const left = res.headers.get('x-ratelimit-remaining')
+if (left !== null) { S.scansLeft = Number(left); renderQuota() }
+if (!res.ok) {
+const body = await res.json().catch(() => ({}))
+throw Object.assign(new Error(body.error || 'erro ' + res.status), { retryAfter: body.retryAfter })
+}
+let done = null
+await readSse(res, (ev, data) => {
+if (ev === 'step') progress(data.label)
+else if (ev === 'finding') printFinding(data)
+else if (ev === 'warn') print(L('warn', data.message))
+else if (ev === 'error') print(L('fail', data.message))
+else if (ev === 'done') done = data
+})
+return done
+}
+
+const realScan = async (d) => {
+setRunning(true); setProgress(0)
+let n = 0
+const progress = (label) => { print(L('title', '[' + (++n) + '/' + STEPS + '] ' + label)); setProgress(Math.round((n - 1) / STEPS * 100)) }
+try {
+print(L('dim', 'escaneando ' + d + '...'))
+const scan = await callApi('/api/scan', d, progress)
+// dominios parecidos ficam em outra rota (limite de consultas por requisicao do Worker); se falhar, o scan vale mesmo assim
+await callApi('/api/lookalikes', d, progress).catch((e) => print(L('warn', 'dominios parecidos indisponiveis: ' + e.message)))
+setProgress(100)
+if (!scan) return print(L('fail', 'a varredura terminou sem resultado. tente de novo.'))
+if (scan.grade) {
+print(L('grade', 'nota final: ' + scan.grade + '   ' + (scan.grave + scan.medio) + ' problemas, ' + scan.grave + ' graves'))
+S.lastScan = d
+S.history = [{ ago: 'agora', domain: d, grade: scan.grade }, ...S.history.filter((h) => h.domain !== d)]
+EVOL[d] = [...(EVOL[d] || []).filter(([dt]) => dt !== today()), [today(), scan.grade]]
+renderRecent()
+print(L('dim', 'proximo passo: /corrigir, /mapa, /compartilhar ou /perguntar'))
+} else {
+print(L('fail', 'sem nota: o site nao respondeu a requisicao web, entao nao ha base para avaliar.'))
+}
+} catch (e) {
+print(L('fail', e.message))
+if (e.retryAfter) print(L('dim', 'tente de novo em ' + Math.ceil(e.retryAfter / 60) + ' min. o limite impede que o servico vire ferramenta de ataque.'))
+} finally {
+setRunning(false)
+}
 }
 const profile = (d) => {
 const grade = gradeOf(d)
@@ -955,15 +1000,7 @@ if (c === '/scan') {
 const d = clean(args[0])
 if (!d || (!d.includes('.') && d !== 'localhost')) return say([L('fail', 'uso: /scan <dominio>   ex.: /scan lojadojoao.com.br')])
 if (/^(localhost|127\.|10\.|0\.0\.0\.0|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(d)) return say([L('fail', 'alvo bloqueado: localhost e ips internos nao podem ser escaneados'), L('dim', 'protecao contra abuso. o skunkscan so analisa sites publicos.')])
-if (S.scansLeft <= 0) return say([L('fail', 'limite atingido: 5 varreduras por hora por ip'), L('dim', 'tente de novo em 42 min. o limite impede que o servico vire ferramenta de ataque.')])
-S.scansLeft--; renderQuota()
-return play(scanLines(d), () => {
-S.lastScan = d
-S.history = [{ ago: 'agora', domain: d, grade: 'D' }, ...S.history.filter((h) => h.domain !== d)]
-const e = EVOL[d] || []
-EVOL[d] = [...e.filter(([dt]) => dt !== today()), [today(), 'D']]
-renderRecent()
-})
+return realScan(d)
 }
 if (c === '/corrigir') {
 const d = S.lastScan; if (!d) return needScan()

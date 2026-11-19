@@ -7,16 +7,22 @@ import { checkSubdomains } from './checks/subdomains'
 import { checkCves } from './checks/cves'
 import { checkLookalikes } from './checks/lookalikes'
 import { countFindings, gradeOf } from './scoring'
+import { checkLimit, LIMIT, RateLimiter, type LimitResult } from './ratelimit'
 import type { Finding } from './types'
 
 const cors = {
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'POST, OPTIONS',
   'access-control-allow-headers': 'content-type',
+  'access-control-expose-headers': 'retry-after, x-ratelimit-limit, x-ratelimit-remaining',
 }
 
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...cors } })
+export { RateLimiter }
+
+type Env = { RATE_LIMITER: DurableObjectNamespace<RateLimiter> }
+
+const json = (body: unknown, status = 200, extra: Record<string, string> = {}) =>
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...cors, ...extra } })
 
 type Run = (id: string, label: string, check: () => Promise<Finding[] | null>) => Promise<void>
 
@@ -39,7 +45,7 @@ const routes: Record<string, (domain: string, run: Run) => Promise<void>> = {
   },
 }
 
-const stream = (domain: string, route: (domain: string, run: Run) => Promise<void>, graded: boolean) =>
+const stream = (domain: string, route: (domain: string, run: Run) => Promise<void>, graded: boolean, headers: Record<string, string>) =>
   sseResponse(async (send: Send) => {
     const findings: Finding[] = []
     const failed: string[] = []
@@ -69,10 +75,16 @@ const stream = (domain: string, route: (domain: string, run: Run) => Promise<voi
     // sem resposta do site nao existe base pra nota: melhor nao dar nota do que dar uma enganosa
     const grade = failed.includes('web') ? null : gradeOf(findings)
     await send('done', { domain, total: findings.length, grade, ...countFindings(findings), incomplete: failed })
-  }, cors)
+  }, headers)
+
+const rateHeaders = (l: LimitResult) => ({
+  ...cors,
+  'x-ratelimit-limit': String(LIMIT),
+  'x-ratelimit-remaining': String(l.remaining),
+})
 
 export default {
-  async fetch(req: Request): Promise<Response> {
+  async fetch(req: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(req.url)
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors })
     const route = routes[pathname]
@@ -82,6 +94,17 @@ export default {
     const body = await req.json<{ domain?: unknown }>().catch(() => null)
     const domain = parseDomain(body?.domain)
     if (!domain) return json({ error: 'dominio invalido' }, 400)
+
+    // so conta depois de validar o dominio, pra entrada invalida nao gastar a cota de ninguem
+    const ip = req.headers.get('cf-connecting-ip') ?? 'local'
+    const limit = await checkLimit(env.RATE_LIMITER, pathname, ip)
+    if (!limit.ok) {
+      return json({ error: 'limite de 5 scans por hora atingido', retryAfter: limit.retryAfter }, 429, {
+        'retry-after': String(limit.retryAfter),
+        'x-ratelimit-limit': String(LIMIT),
+        'x-ratelimit-remaining': '0',
+      })
+    }
 
     const host = await checkHost(domain)
     if (!host.ok) {
@@ -93,6 +116,6 @@ export default {
       return json({ error: msg }, host.reason === 'dns-falhou' ? 502 : 400)
     }
 
-    return stream(domain, route, pathname === '/api/scan')
+    return stream(domain, route, pathname === '/api/scan', rateHeaders(limit))
   },
 }

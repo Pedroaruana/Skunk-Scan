@@ -8,7 +8,7 @@ import { checkCves } from './checks/cves'
 import { checkLookalikes } from './checks/lookalikes'
 import { countFindings, gradeOf } from './scoring'
 import { checkLimit, LIMIT, RateLimiter, type LimitResult } from './ratelimit'
-import { isId, loadReport, saveReport } from './reports'
+import { isId, loadHistory, loadReport, saveReport } from './reports'
 import type { Finding } from './types'
 
 const cors = {
@@ -96,6 +96,12 @@ export default {
       if (req.method !== 'GET') return json({ error: 'use GET' }, 405)
       const found = isId(report) ? await loadReport(env.DB, report) : null
       return found ? json(found) : json({ error: 'relatorio nao encontrado ou expirado' }, 404)
+    }
+    if (pathname.startsWith('/api/history/')) {
+      if (req.method !== 'GET') return json({ error: 'use GET' }, 405)
+      const domain = parseDomain(pathname.slice('/api/history/'.length))
+      if (!domain) return json({ error: 'dominio invalido' }, 400)
+      return json({ domain, scans: await loadHistory(env.DB, domain) })
     }
     const route = routes[pathname]
     if (!route) return json({ error: 'nao encontrado' }, 404)

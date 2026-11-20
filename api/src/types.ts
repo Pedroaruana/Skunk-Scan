@@ -7,4 +7,6 @@ export type Finding = {
   title: string
   detail: string
   fix?: string
+  // nomes que o achado cita (subdominios, versoes, CVEs, dominios parecidos); o mapa usa pra desenhar os nos
+  items?: string[]
 }

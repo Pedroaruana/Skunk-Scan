@@ -164,6 +164,7 @@ export const checkWeb = async (domain: string): Promise<WebResult | null> => {
       title: 'Versao do servidor exposta',
       detail: `Os headers revelam: ${exposed.join(', ')}. Isso ajuda quem procura falhas conhecidas dessa versao.`,
       fix: 'Remova ou oculte os headers Server e X-Powered-By (ex.: server_tokens off no nginx, ServerTokens Prod no Apache).',
+      items: exposed,
     })
   }
 

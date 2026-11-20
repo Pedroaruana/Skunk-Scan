@@ -8,6 +8,7 @@ import { checkCves } from './checks/cves'
 import { checkLookalikes } from './checks/lookalikes'
 import { countFindings, gradeOf } from './scoring'
 import { checkLimit, LIMIT, RateLimiter, type LimitResult } from './ratelimit'
+import { generateFixes } from './llm'
 import { isId, loadHistory, loadReport, saveReport } from './reports'
 import type { Finding } from './types'
 
@@ -20,7 +21,7 @@ const cors = {
 
 export { RateLimiter }
 
-type Env = { RATE_LIMITER: DurableObjectNamespace<RateLimiter>; DB: D1Database }
+type Env = { RATE_LIMITER: DurableObjectNamespace<RateLimiter>; DB: D1Database; AI?: Ai }
 
 const json = (body: unknown, status = 200, extra: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...cors, ...extra } })
@@ -102,6 +103,25 @@ export default {
       const domain = parseDomain(pathname.slice('/api/history/'.length))
       if (!domain) return json({ error: 'dominio invalido' }, 400)
       return json({ domain, scans: await loadHistory(env.DB, domain) })
+    }
+    if (pathname === '/api/fix') {
+      if (req.method !== 'POST') return json({ error: 'use POST' }, 405)
+      const body = await req.json<{ id?: unknown }>().catch(() => null)
+      const id = typeof body?.id === 'string' ? body.id : ''
+      if (!isId(id)) return json({ error: 'id de relatorio invalido' }, 400)
+      const ip = req.headers.get('cf-connecting-ip') ?? 'local'
+      const limit = await checkLimit(env.RATE_LIMITER, pathname, ip)
+      if (!limit.ok) {
+        return json({ error: 'limite de 5 pedidos de correcao por hora atingido', retryAfter: limit.retryAfter }, 429, {
+          'retry-after': String(limit.retryAfter),
+          'x-ratelimit-limit': String(LIMIT),
+          'x-ratelimit-remaining': '0',
+        })
+      }
+      // as correcoes saem do relatorio salvo, nao de dados enviados pelo cliente
+      const found = await loadReport(env.DB, id)
+      if (!found) return json({ error: 'relatorio nao encontrado ou expirado' }, 404)
+      return json({ domain: found.domain, ...(await generateFixes(found.domain, found.findings, env.AI)) }, 200, rateHeaders(limit))
     }
     const route = routes[pathname]
     if (!route) return json({ error: 'nao encontrado' }, 404)

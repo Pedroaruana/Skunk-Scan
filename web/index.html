@@ -999,20 +999,32 @@ return realScan(d)
 }
 if (c === '/corrigir') {
 const d = S.lastScan; if (!d) return needScan()
-return play([
-L('dim', 'gerando correcoes com ia para ' + d + '...', 900),
-L('title', '01  esconder a versao do servidor  (nginx.conf)', 300),
-L('code', 'server_tokens off;', 200),
-L('title', '02  criar registro dmarc  (dns, tipo TXT, nome _dmarc)', 300),
-L('code', 'v=DMARC1; p=quarantine; rua=mailto:dmarc@' + d, 200),
-L('title', '03  adicionar content-security-policy  (nginx.conf)', 300),
-L('code', "add_header Content-Security-Policy \"default-src 'self'\" always;", 200),
-L('title', '04  fechar subdominios expostos', 300),
-L('normal', 'coloque senha em dev. e staging., restrinja admin. por ip e remova o dns de antigo.', 200),
-L('title', '05  atualizar o nginx', 300),
-L('code', 'sudo apt update && sudo apt install nginx   # 1.26+ corrige as 2 cves', 200),
-L('ok', 'aplicando tudo, a nota estimada sobe de D para A', 100)
-])
+if (!S.lastId) return say([L('fail', 'esse scan nao gerou relatorio salvo. rode /scan de novo.')])
+setRunning(true, false)
+print(L('dim', 'gerando correcoes para ' + d + '...'))
+return fetch(API + '/api/fix', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: S.lastId }) })
+.then(async (res) => {
+const body = await res.json().catch(() => ({}))
+if (!res.ok) throw Object.assign(new Error(body.error || 'erro ' + res.status), { retryAfter: body.retryAfter })
+return body
+})
+.then(({ fixes, ai }) => {
+if (!fixes.length) return say([L('ok', 'nada para corrigir em ' + d + '.')])
+const lines = []
+fixes.forEach((f, i) => {
+lines.push(L('title', String(i + 1).padStart(2, '0') + '  ' + f.title))
+if (f.how) lines.push(L('normal', f.how))
+lines.push(L('code', f.code))
+})
+if (!ai) lines.push(L('dim', 'sem o texto da ia agora, so os modelos prontos.'))
+lines.push(L('dim', 'teste cada mudanca antes de publicar. depois rode /scan ' + d + ' de novo para ver a nota.'))
+say(lines)
+})
+.catch((e) => {
+print(L('fail', e.message === 'Failed to fetch' ? 'nao consegui falar com a api. tente de novo em instantes.' : e.message))
+if (e.retryAfter) print(L('dim', 'tente de novo em ' + Math.ceil(e.retryAfter / 60) + ' min.'))
+})
+.finally(() => setRunning(false))
 }
 if (c === '/perguntar') {
 const q = args.join(' ')

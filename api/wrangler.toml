@@ -16,3 +16,6 @@ database_name = "skunkscan"
 # troque pelo id real depois de `wrangler d1 create skunkscan` (so o deploy precisa; local ignora)
 database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
+
+[ai]
+binding = "AI"

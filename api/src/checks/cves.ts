@@ -81,6 +81,7 @@ const lookup = async ({ product, version }: Software): Promise<Finding> => {
         : '') +
       ' A versao vem do header do servidor; se o provedor aplica correcoes sem mudar o numero (comum no Debian e Ubuntu), pode ser falso positivo.',
     fix: `Atualize ${product} para a versao estavel mais recente, ou confirme com o provedor que as correcoes de seguranca foram aplicadas.`,
+    items: top.map((c) => c.id),
   }
 }
 

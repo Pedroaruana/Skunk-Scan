@@ -117,6 +117,7 @@ export const checkLookalikes = async (domain: string): Promise<Finding[]> => {
       fix: active.length > 0
         ? 'Registre os principais para voce, ative DMARC com p=reject para barrar e-mail falso e avise clientes sobre golpes com o nome da empresa.'
         : 'Sem uso hoje. Vale registrar os principais e acompanhar.',
+      items: detailed.map((h) => h.domain),
     },
   ]
 }

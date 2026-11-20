@@ -105,6 +105,7 @@ export const checkSubdomains = async (domain: string): Promise<Finding[]> => {
     severity: 'info',
     title: `${subs.length} subdominios encontrados`,
     detail: `Listados nos certificados publicos: ${subs.slice(0, 30).join(', ')}${subs.length > 30 ? ' e outros' : ''}.`,
+    items: subs.slice(0, 30),
   })
 
   // limite de consultas por scan (plano free do Workers): os de nome sensivel entram primeiro
@@ -121,6 +122,7 @@ export const checkSubdomains = async (domain: string): Promise<Finding[]> => {
       title: 'Subdominios sensiveis acessiveis pela internet',
       detail: `Nomes que sugerem ambiente interno ou administrativo, ja resolvendo no DNS publico: ${exposed.map((e) => e.name).join(', ')}.`,
       fix: 'Restrinja por VPN, lista de IPs ou autenticacao, e apague do DNS os que nao estao em uso.',
+      items: exposed.map((e) => e.name),
     })
   }
 
@@ -132,6 +134,7 @@ export const checkSubdomains = async (domain: string): Promise<Finding[]> => {
       title: 'Subdominios apontam para IP interno',
       detail: `O DNS publico revela enderecos da rede interna: ${internal.map((i) => `${i.name} (${i.ips.filter(isPrivateIp).join(', ')})`).join('; ')}.`,
       fix: 'Mova esses registros para um DNS interno (split-horizon) e deixe so os servicos publicos no DNS da internet.',
+      items: internal.map((i) => i.name),
     })
   }
 

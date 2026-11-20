@@ -1036,10 +1036,11 @@ say([L('title', 'evolucao da nota  ' + d), L('chart', chart(sr)), L('dim', msg)]
 }).catch(() => say([L('fail', 'nao consegui buscar o historico agora. tente de novo em instantes.')])).finally(() => setRunning(false))
 }
 if (c === '/mapa') {
-const d = clean(args[0]) || S.lastScan || 'lojadojoao.com.br'
-S.mapDomain = d
-say([L('dim', 'abrindo o mapa de ' + d + '...')])
-return setTimeout(() => go('#/mapa'), 400)
+const d = clean(args[0])
+const id = d ? S.history.find((h) => h.domain === d)?.id : S.lastId
+if (!id) return say([L('fail', d ? 'nenhuma varredura de ' + d + ' neste navegador. use /scan ' + d : 'nenhuma varredura ainda. use /scan <dominio> primeiro')])
+say([L('dim', 'abrindo o mapa...')])
+return setTimeout(() => go('#/mapa/' + id), 400)
 }
 if (c === '/radar') return go('#/radar')
 if (c === '/como-funciona') return go('#/como-funciona')
@@ -1206,7 +1207,7 @@ box.appendChild(sec)
 const ok = $('r-ok'); ok.innerHTML = ''
 byKind('ok').forEach((f) => ok.appendChild(el('div', '', '[ ok ] ' + f.title)))
 $('r-copy').onclick = () => { try { navigator.clipboard.writeText(shareUrl(r.id)) } catch (e) {} $('r-copy').textContent = 'link copiado'; setTimeout(() => { $('r-copy').textContent = 'copiar link' }, 1400) }
-$('r-map').onclick = () => { S.mapDomain = r.domain }
+$('r-map').href = '#/mapa/' + r.id
 }
 
 const loadReportPage = async (id) => {
@@ -1284,29 +1285,88 @@ $('rp-rank').textContent = top.map(([u, v]) => u + '  ' + '█'.repeat(Math.roun
 
 /* ---------- mapa ---------- */
 const M = { nodes: [], edges: [], sel: null }
-const buildMap = (d) => {
-const name = d.split('.')[0]
-M.nodes = [
-{ id: 'root', label: d, cls: 'root', x: 50, y: 48, info: 'O dominio principal. Tudo o que aparece no mapa sai de informacao publica ligada a ele.' },
-{ id: 'www', label: 'www.' + d, cls: '', x: 32, y: 18, info: 'Site principal. HTTPS ativo e certificado valido ate 03/2027.' },
-{ id: 'loja', label: 'loja.' + d, cls: '', x: 54, y: 10, info: 'Loja virtual. HTTPS ativo.' },
-{ id: 'dev', label: 'dev.' + d, cls: 'risk', x: 76, y: 18, info: 'Ambiente de teste publicado na internet. Costuma ter dados de teste, erros detalhados e menos protecao. Coloque senha ou tire do ar.' },
-{ id: 'staging', label: 'staging.' + d, cls: 'risk', x: 86, y: 44, info: 'Copia do site em homologacao, aberta sem autenticacao. Qualquer pessoa acessa.' },
-{ id: 'admin', label: 'admin.' + d, cls: 'risk', x: 80, y: 74, info: 'Painel de login exposto para toda a internet. Alvo classico de tentativa de senha. Restrinja por IP.' },
-{ id: 'antigo', label: 'antigo.' + d, cls: 'off', x: 58, y: 88, info: 'Fora do ar, mas o DNS ainda aponta para ele. Se o servidor for de terceiros, alguem pode assumir esse endereco. Remova o registro.' },
-{ id: 'nginx', label: 'servidor nginx/1.18.0', cls: 'infra', x: 24, y: 52, info: 'Servidor web. Mostra a versao no header Server, o que entrega quais falhas procurar.' },
-{ id: 'cve1', label: 'CVE-2021-23017  alta', cls: 'risk', x: 9, y: 34, info: 'Falha no resolver DNS do nginx. Gravidade alta. Corrigida em versoes mais novas.' },
-{ id: 'cve2', label: 'CVE-2021-3618  media', cls: 'risk', x: 9, y: 70, info: 'Ataque ALPACA, que confunde conexoes TLS entre servicos. Gravidade media.' },
-{ id: 'mx', label: 'e-mail (mx)', cls: 'infra', x: 34, y: 82, info: 'Servidor de e-mail do dominio. SPF configurado.' },
-{ id: 'dmarc', label: 'dmarc ausente', cls: 'risk', x: 20, y: 93, info: 'Sem DMARC, qualquer um manda e-mail se passando pela empresa. Corrija com um registro TXT em _dmarc.' },
-{ id: 'phish', label: name + '-promo.com', cls: 'phish', x: 90, y: 92, info: 'Dominio parecido registrado ha 3 dias, por outra pessoa. Pode virar golpe com os seus clientes.' }
-]
-M.edges = [['root', 'www'], ['root', 'loja'], ['root', 'dev'], ['root', 'staging'], ['root', 'admin'], ['root', 'antigo'], ['root', 'nginx'], ['root', 'mx'], ['nginx', 'cve1'], ['nginx', 'cve2'], ['mx', 'dmarc'], ['root', 'phish', 'dash']]
-M.sel = null
-$('m-dom').textContent = d
-drawMap()
+// posicao em % a partir do centro: angulo em graus (0 = direita, 90 = baixo) e raio de 0 a 1
+const pol = (deg, r) => { const a = deg * Math.PI / 180; return [50 + Math.cos(a) * 34 * r, 48 + Math.sin(a) * 38 * r] }
+// n angulos distribuidos em volta de um centro, sem passar de um arco maximo
+const fan = (n, center, step, max) => { const span = Math.min(max, step * (n - 1)); return Array.from({ length: n }, (_, i) => n === 1 ? center : center - span / 2 + (span * i) / (n - 1)) }
+const SITE_IDS = ['https', 'redirect', 'hsts', 'csp', 'nosniff', 'clickjacking', 'cert']
+const MAIL_IDS = ['spf', 'dkim', 'dmarc', 'email']
+const short = (t) => t.length > 26 ? t.slice(0, 25) + '.' : t
+const isRisk = (f) => f.severity === 'grave' || f.severity === 'medio'
+
+// monta o grafo so com o que o relatorio da varredura realmente achou
+const buildMap = (r) => {
+const fs = r.findings
+const byId = (id) => fs.find((f) => f.id === id)
+const nodes = [], edges = []
+const put = (n, from, ang, rad, dash) => { const [x, y] = pol(ang, rad); nodes.push({ ...n, x, y }); if (from) edges.push([from, n.id, dash]) }
+const risks = fs.filter(isRisk).length
+const subs = byId('subdomains')?.items || []
+put({ id: 'root', label: r.domain, cls: 'root', info: 'Dominio principal, nota ' + r.grade + '. ' + risks + (risks === 1 ? ' problema encontrado' : ' problemas encontrados') + ' e ' + subs.length + (subs.length === 1 ? ' subdominio publicado' : ' subdominios publicados') + '. Tudo o que aparece no mapa sai de informacao publica ligada a ele.' }, null, 0, 0)
+
+// subdominios dos certificados publicos; os de risco vem primeiro
+const hot = new Set([...(byId('sensitive-subdomains')?.items || []), ...(byId('internal-subdomains')?.items || [])])
+const shown = [...subs.filter((s) => hot.has(s)), ...subs.filter((s) => !hot.has(s))].slice(0, 10)
+fan(shown.length, 290, 19, 170).forEach((a, i) => {
+const s = shown[i], bad = hot.has(s)
+put({ id: 'sub' + i, label: short(s), cls: bad ? 'risk' : '', info: s + '. ' + (bad ? 'Nome que sugere ambiente interno ou administrativo e ja resolve no DNS publico. Restrinja por VPN, IP ou senha, e apague do DNS se nao for usado.' : 'Subdominio listado nos certificados publicos do dominio.') }, 'root', a, i % 2 ? 0.7 : 1, bad)
+})
+
+// servidor e CVEs
+const banners = (byId('version')?.items || []).slice(0, 2)
+const srvAngle = fan(banners.length, 150, 22, 44)
+banners.forEach((b, i) => put({ id: 'srv' + i, label: 'servidor ' + b, cls: 'infra', info: 'O header do servidor mostra a versao. Isso entrega quais falhas procurar nessa versao.' }, 'root', srvAngle[i], 0.5))
+const cves = []
+fs.filter((f) => f.id.startsWith('cve-') && isRisk(f)).forEach((f) => {
+const product = f.id.slice(4)
+const hub = banners.findIndex((b) => b.toLowerCase().includes(product))
+;(f.items || []).forEach((c) => cves.push({ c, f, hub: hub >= 0 ? 'srv' + hub : 'root' }))
+})
+fan(cves.length, 150, 12, 56).forEach((a, i) => {
+const { c, f, hub } = cves[i]
+put({ id: 'cve' + i, label: c, cls: 'risk', info: f.title + '. ' + f.detail }, hub, a, 0.95, true)
+})
+
+// grupos com um no central e um filho por problema: headers do site e e-mail
+const group = (id, label, ids, angle, info) => {
+const all = fs.filter((f) => ids.includes(f.id))
+if (!all.length) return
+put({ id, label, cls: 'infra', info }, 'root', angle, 0.5)
+const bad = all.filter(isRisk)
+fan(bad.length, angle, 13, 48).forEach((a, i) => {
+const f = bad[i]
+put({ id: id + i, label: short(f.title), cls: 'risk', info: f.detail + (f.fix ? ' Correcao: ' + f.fix : '') }, id, a, 0.95, true)
+})
+}
+group('site', 'site e headers', SITE_IDS, 195, 'Certificado, redirecionamento para HTTPS e headers de seguranca que o servidor envia.')
+group('mail', 'e-mail do dominio', MAIL_IDS, 112, 'Registros SPF, DKIM e DMARC no DNS. Eles impedem que alguem mande e-mail se passando pela empresa.')
+
+// dominios parecidos
+const look = (byId('lookalikes')?.items || []).slice(0, 6)
+fan(look.length, 50, 14, 70).forEach((a, i) => put({ id: 'look' + i, label: short(look[i]), cls: 'phish', info: look[i] + '. Dominio parecido com o seu, ja registrado por outra pessoa. Pode ser legitimo ou defensivo; so o dono sabe. Os detalhes estao no relatorio.' }, 'root', a, 0.95, true))
+
+M.nodes = nodes; M.edges = edges; M.sel = null
+$('m-dom').textContent = r.domain
 $('mp-t').textContent = 'Clique em um no'
 $('mp-d').textContent = 'Cada caixa e algo exposto na internet. As de borda branca com ! sao riscos.'
+drawMap()
+}
+// sem relatorio, limpa o grafo e explica no painel
+const mapMessage = (text) => {
+M.nodes = []; M.edges = []; M.sel = null
+$('m-dom').textContent = ''
+$('graph').querySelectorAll('.node').forEach((n) => n.remove())
+$('edges').innerHTML = ''
+$('mp-t').textContent = 'Sem mapa'
+$('mp-d').textContent = text
+}
+const loadMap = async (id) => {
+mapMessage('carregando...')
+try {
+const res = await fetch(API + '/api/r/' + encodeURIComponent(id))
+if (!res.ok) return mapMessage(res.status === 404 ? 'relatorio nao encontrado ou expirado (os links valem 30 dias). rode /scan de novo.' : 'nao consegui carregar o mapa agora.')
+buildMap(await res.json())
+} catch (e) { mapMessage('nao consegui falar com a api. tente de novo em instantes.') }
 }
 const drawEdges = () => {
 const svg = $('edges'); svg.innerHTML = ''
@@ -1381,7 +1441,11 @@ if (p.startsWith('r/')) {
 show('result'); return loadReportPage(p.slice(2))
 }
 if (p === 'radar') { renderRadar(); return show('radar') }
-if (p === 'mapa') { show('mapa'); return buildMap(S.mapDomain || S.lastScan || 'lojadojoao.com.br') }
+if (p === 'mapa' || p.startsWith('mapa/')) {
+show('mapa')
+const id = p.startsWith('mapa/') ? p.slice(5) : S.lastId
+return id ? loadMap(id) : mapMessage('nenhuma varredura ainda. use /scan seusite.com.br e volte aqui.')
+}
 if (p === 'como-funciona') return show('como')
 if (p === 'docs') return show('docs')
 show('home')

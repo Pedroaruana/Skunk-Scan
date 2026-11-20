@@ -1,21 +1,20 @@
 import { parseDomain } from './domain'
 import { sseResponse, type Send } from './sse'
 import { checkHost } from './ssrf'
-import { checkWeb } from './checks/web'
-import { checkDns } from './checks/dns'
-import { checkSubdomains } from './checks/subdomains'
-import { checkCves } from './checks/cves'
 import { checkLookalikes } from './checks/lookalikes'
 import { countFindings, gradeOf } from './scoring'
 import { checkLimit, LIMIT, RateLimiter, type LimitResult } from './ratelimit'
 import { answerQuestion, MAX_QUESTION } from './ask'
 import { generateFixes } from './llm'
+import { atomFeed } from './feed'
+import { createMonitor, isToken, parseWebhook, removeMonitor, runDueMonitor, TTL_DAYS } from './monitor'
 import { isId, loadHistory, loadReport, saveReport } from './reports'
+import { scanChecks, type Run } from './scan'
 import type { Finding } from './types'
 
 const cors = {
   'access-control-allow-origin': '*',
-  'access-control-allow-methods': 'GET, POST, OPTIONS',
+  'access-control-allow-methods': 'GET, POST, DELETE, OPTIONS',
   'access-control-allow-headers': 'content-type',
   'access-control-expose-headers': 'retry-after, x-ratelimit-limit, x-ratelimit-remaining',
 }
@@ -30,21 +29,9 @@ type Env = { RATE_LIMITER: DurableObjectNamespace<RateLimiter>; DB: D1Database; 
 const json = (body: unknown, status = 200, extra: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...cors, ...extra } })
 
-type Run = (id: string, label: string, check: () => Promise<Finding[] | null>) => Promise<void>
-
 // cada rota recebe o dominio ja validado e um run que isola cada check: se um cair, os outros seguem
 const routes: Record<string, (domain: string, run: Run) => Promise<void>> = {
-  '/api/scan': async (domain, run) => {
-    let banners: string[] = []
-    await run('web', 'TLS e headers', async () => {
-      const web = await checkWeb(domain)
-      banners = web?.banners ?? []
-      return web?.findings ?? null
-    })
-    await run('dns', 'e-mail (SPF, DKIM, DMARC)', () => checkDns(domain))
-    await run('subdomains', 'subdominios e certificado', () => checkSubdomains(domain))
-    await run('cves', 'CVEs conhecidos', () => checkCves(banners))
-  },
+  '/api/scan': scanChecks,
   // fica fora do scan porque cada variacao e uma consulta DNS e o scan ja usa cerca de 43 dos 50 subrequests
   '/api/lookalikes': async (domain, run) => {
     await run('lookalikes', 'dominios parecidos', () => checkLookalikes(domain))
@@ -101,6 +88,46 @@ export default {
       if (req.method !== 'GET') return json({ error: 'use GET' }, 405)
       const found = isId(report) ? await loadReport(env.DB, report) : null
       return found ? json(found) : json({ error: 'relatorio nao encontrado ou expirado' }, 404)
+    }
+    if (pathname.startsWith('/api/feed/')) {
+      if (req.method !== 'GET') return json({ error: 'use GET' }, 405)
+      const domain = parseDomain(pathname.slice('/api/feed/'.length))
+      if (!domain) return json({ error: 'dominio invalido' }, 400)
+      const xml = atomFeed(domain, await loadHistory(env.DB, domain), req.url)
+      return new Response(xml, { headers: { 'content-type': 'application/atom+xml; charset=utf-8', 'cache-control': 'public, max-age=300', ...cors } })
+    }
+    if (pathname.startsWith('/api/monitor/')) {
+      if (req.method !== 'DELETE') return json({ error: 'use DELETE' }, 405)
+      const token = pathname.slice('/api/monitor/'.length)
+      const removed = isToken(token) ? await removeMonitor(env.DB, token) : false
+      return removed ? json({ removed: true }) : json({ error: 'monitor nao encontrado' }, 404)
+    }
+    if (pathname === '/api/monitor') {
+      if (req.method !== 'POST') return json({ error: 'use POST' }, 405)
+      const body = await req.json<{ domain?: unknown; webhook?: unknown }>().catch(() => null)
+      const domain = parseDomain(body?.domain)
+      if (!domain) return json({ error: 'dominio invalido' }, 400)
+      const wantsWebhook = typeof body?.webhook === 'string' && body.webhook.trim() !== ''
+      const webhook = wantsWebhook ? parseWebhook(body?.webhook) : null
+      if (wantsWebhook && !webhook) return json({ error: 'webhook invalido: use uma url https publica' }, 400)
+      const ip = req.headers.get('cf-connecting-ip') ?? 'local'
+      const limit = await checkLimit(env.RATE_LIMITER, pathname, ip)
+      if (!limit.ok) {
+        return json({ error: 'limite de 5 cadastros por hora atingido', retryAfter: limit.retryAfter }, 429, {
+          'retry-after': String(limit.retryAfter),
+          'x-ratelimit-limit': String(LIMIT),
+          'x-ratelimit-remaining': '0',
+        })
+      }
+      if (!(await checkHost(domain)).ok) return json({ error: 'dominio nao resolve ou aponta para endereco interno' }, 400)
+      if (webhook && !(await checkHost(webhook.hostname)).ok) return json({ error: 'webhook invalido: o endereco nao e publico' }, 400)
+      const created = await createMonitor(env.DB, domain, webhook ? webhook.toString() : null)
+      if (!created.ok) {
+        return created.reason === 'cheio'
+          ? json({ error: 'limite de monitores atingido, tente mais tarde' }, 503)
+          : json({ error: 'esse dominio ja esta monitorado com esse webhook' }, 409)
+      }
+      return json({ domain, token: created.token, feed: `/api/feed/${domain}`, webhook: webhook !== null, expiresInDays: TTL_DAYS }, 201, rateHeaders(limit))
     }
     if (pathname.startsWith('/api/history/')) {
       if (req.method !== 'GET') return json({ error: 'use GET' }, 405)
@@ -177,5 +204,9 @@ export default {
     }
 
     return stream(domain, route, pathname === '/api/scan', rateHeaders(limit), env.DB)
+  },
+  // cron: confere um monitor vencido por disparo
+  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(runDueMonitor(env.DB))
   },
 }

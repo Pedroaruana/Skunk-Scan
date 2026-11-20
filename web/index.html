@@ -537,7 +537,9 @@ data: {"id":"8f2k1a","nota":"D","graves":3,"medios":3}</pre>
 <dl>
 <dt>GET /api/r/:id</dt><dd>resultado completo de uma varredura compartilhada.</dd>
 <dt>GET /api/selo/:dominio.svg</dt><dd>selo do site. So existe enquanto a nota for A.</dd>
-<dt>POST /api/monitorar</dt><dd>corpo {"dominio","email"}. Ativa a verificacao diaria com alerta por e-mail.</dd>
+<dt>POST /api/monitor</dt><dd>corpo {"domain","webhook?"}. Ativa a verificacao diaria e devolve o token para remover. Com webhook https, recebe um POST quando a nota cair. Vale por 90 dias.</dd>
+<dt>DELETE /api/monitor/:token</dt><dd>remove o monitoramento.</dd>
+<dt>GET /api/feed/:dominio</dt><dd>feed Atom com as ultimas varreduras do dominio: nota, contagens e data.</dd>
 <dt>POST /api/perguntar</dt><dd>corpo {"pergunta","id?"}. Resposta da ia, usando o resultado da varredura como contexto quando o id e enviado.</dd>
 </dl>
 
@@ -694,7 +696,7 @@ const FEATURES = [
 ['radar brasil', 'mapa com a seguranca dos sites de pequenas empresas por estado', '/radar'],
 ['pagina do resultado', 'relatorio publico com nota, problemas por gravidade e correcoes', '/compartilhar'],
 ['relatorio em pdf', 'para mandar ao desenvolvedor ou ao cliente', '/relatorio'],
-['monitoramento diario', 'verifica todo dia e avisa por e-mail via resend se a nota cair', '/monitorar'],
+['monitoramento diario', 'confere o site todo dia, mantem um feed atom da nota e avisa por webhook se ela cair', '/monitorar'],
 ['selo verificado', 'sites com nota A exibem o selo, que some sozinho se a nota cair', '/selo dominio'],
 ['linha de comando e api', 'a mesma varredura no terminal ou integrada ao seu sistema', 'npx skunkscan'],
 ['protecao contra abuso', '5 varreduras por hora por ip e bloqueio de ips internos e localhost', 'automatico']
@@ -765,7 +767,7 @@ const CMDS = [
 ['/relatorio', '', 'baixa o relatorio em pdf'],
 ['/comparar', '<dominio1> <dominio2>', 'compara dois sites'],
 ['/historico', '', 'varreduras anteriores'],
-['/monitorar', '<dominio> <email>', 'alerta diario por e-mail'],
+['/monitorar', '<dominio> [webhook]', 'verificacao diaria com feed e alerta'],
 ['/selo', '<dominio>', 'selo para sites com nota A'],
 ['/radar', '', 'seguranca dos sites por estado'],
 ['/como-funciona', '', 'como cada checagem e feita'],
@@ -1064,15 +1066,38 @@ L('dim', (pa.grade <= pb.grade ? a : b) + ' esta mais protegido', 100)
 ])
 }
 if (c === '/monitorar') {
-const d = clean(args[0]), email = args[1]
-if (!d || !email || !email.includes('@')) return say([L('fail', 'uso: /monitorar <dominio> <email>')])
-return play([
-L('dim', 'agendando verificacao diaria...', 600),
-L('ok', 'monitoramento ativo para ' + d, 300),
-L('normal', 'roda todo dia as 03:00. se a nota cair ou surgir site imitando, voce recebe um e-mail.', 300),
-L('dim', 'enviando confirmacao para ' + email + ' via resend...', 900),
-L('ok', 'e-mail enviado', 100)
+const usage = () => say([L('fail', 'uso: /monitorar <dominio> [webhook]   ex.: /monitorar lojadojoao.com.br https://hooks.slack.com/...'), L('dim', 'para parar: /monitorar parar <token>')])
+if (args[0] === 'parar') {
+if (!args[1]) return usage()
+setRunning(true, false)
+return fetch(API + '/api/monitor/' + encodeURIComponent(args[1]), { method: 'DELETE' })
+.then((res) => say([res.ok ? L('ok', 'monitoramento removido.') : L('fail', res.status === 404 ? 'token nao encontrado. ele ja foi removido ou expirou.' : 'nao consegui remover agora.')]))
+.catch(() => say([L('fail', 'nao consegui falar com a api. tente de novo em instantes.')]))
+.finally(() => setRunning(false))
+}
+const d = clean(args[0])
+if (!d || !d.includes('.')) return usage()
+setRunning(true, false)
+print(L('dim', 'cadastrando ' + d + '...'))
+return fetch(API + '/api/monitor', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ domain: d, webhook: args[1] || undefined }) })
+.then(async (res) => {
+const body = await res.json().catch(() => ({}))
+if (!res.ok) throw Object.assign(new Error(body.error || 'erro ' + res.status), { retryAfter: body.retryAfter })
+say([
+L('ok', 'monitoramento ativo para ' + body.domain + ' por ' + body.expiresInDays + ' dias'),
+L('normal', 'confere uma vez por dia. o feed abaixo ganha uma linha a cada varredura, e da para assinar no leitor de rss.'),
+L('code', API + body.feed),
+L('normal', body.webhook ? 'se a nota cair, o webhook recebe um aviso.' : 'sem webhook: so o feed. para receber aviso, cadastre de novo passando a url.'),
+L('warn', 'guarde este token, ele e a unica forma de parar o monitoramento:'),
+L('code', body.token),
+L('dim', 'para parar: /monitorar parar <token>')
 ])
+})
+.catch((e) => {
+print(L('fail', e.message === 'Failed to fetch' ? 'nao consegui falar com a api. tente de novo em instantes.' : e.message))
+if (e.retryAfter) print(L('dim', 'tente de novo em ' + Math.ceil(e.retryAfter / 60) + ' min.'))
+})
+.finally(() => setRunning(false))
 }
 if (c === '/relatorio') {
 const d = S.lastScan; if (!d) return needScan()

@@ -62,18 +62,13 @@ jobs:
           fi
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
-  web:
+  # montar e publicar ficam em jobs separados: o GitHub demora um instante pra listar o arquivo recem enviado,
+  # e publicar no mesmo job falhava com "Found 0 artifacts"
+  site:
     needs: api
     if: needs.api.outputs.url != ''
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.pages.outputs.page_url }}
     steps:
       - uses: actions/checkout@v5
 
@@ -94,5 +89,16 @@ jobs:
         with:
           path: web
 
-      - id: pages
+  pages:
+    needs: site
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
         uses: actions/deploy-pages@v4

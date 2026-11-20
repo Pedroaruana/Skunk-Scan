@@ -19,3 +19,7 @@ migrations_dir = "migrations"
 
 [ai]
 binding = "AI"
+
+# um monitor vencido por disparo: o limite de subrequests de um Worker cabe um scan so
+[triggers]
+crons = ["*/15 * * * *"]

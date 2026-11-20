@@ -8,12 +8,12 @@ export type LimitResult = { ok: boolean; remaining: number; retryAfter: number }
 // Um objeto por chave (rota + IP). Guarda so os horarios dos ultimos usos dentro da janela.
 // Duravel porque o limite e por hora e o Worker nao guarda memoria entre requisicoes.
 export class RateLimiter extends DurableObject {
-  async hit(): Promise<LimitResult> {
+  async hit(limit: number = LIMIT): Promise<LimitResult> {
     const now = Date.now()
     const stored = (await this.ctx.storage.get<number[]>('hits')) ?? []
     const hits = stored.filter((t) => now - t < WINDOW_MS)
 
-    if (hits.length >= LIMIT) {
+    if (hits.length >= limit) {
       return { ok: false, remaining: 0, retryAfter: Math.ceil((hits[0] + WINDOW_MS - now) / 1000) }
     }
 
@@ -21,7 +21,7 @@ export class RateLimiter extends DurableObject {
     await this.ctx.storage.put('hits', hits)
     // limpa o objeto sozinho quando a janela do primeiro uso vence
     await this.ctx.storage.setAlarm(hits[0] + WINDOW_MS)
-    return { ok: true, remaining: LIMIT - hits.length, retryAfter: 0 }
+    return { ok: true, remaining: limit - hits.length, retryAfter: 0 }
   }
 
   async alarm(): Promise<void> {
@@ -34,10 +34,10 @@ export class RateLimiter extends DurableObject {
 }
 
 // Se o limitador cair, deixa passar: o limite protege o servico, nao pode derrubar o scan.
-export const checkLimit = async (ns: DurableObjectNamespace<RateLimiter>, route: string, ip: string): Promise<LimitResult> => {
+export const checkLimit = async (ns: DurableObjectNamespace<RateLimiter>, route: string, ip: string, limit: number = LIMIT): Promise<LimitResult> => {
   try {
-    return await ns.get(ns.idFromName(`${route}:${ip}`)).hit()
+    return await ns.get(ns.idFromName(`${route}:${ip}`)).hit(limit)
   } catch {
-    return { ok: true, remaining: LIMIT, retryAfter: 0 }
+    return { ok: true, remaining: limit, retryAfter: 0 }
   }
 }

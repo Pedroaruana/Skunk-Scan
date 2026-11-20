@@ -8,6 +8,7 @@ import { checkCves } from './checks/cves'
 import { checkLookalikes } from './checks/lookalikes'
 import { countFindings, gradeOf } from './scoring'
 import { checkLimit, LIMIT, RateLimiter, type LimitResult } from './ratelimit'
+import { answerQuestion, MAX_QUESTION } from './ask'
 import { generateFixes } from './llm'
 import { isId, loadHistory, loadReport, saveReport } from './reports'
 import type { Finding } from './types'
@@ -20,6 +21,9 @@ const cors = {
 }
 
 export { RateLimiter }
+
+// perguntas sao baratas e vem em sequencia, entao o limite e maior que o do scan
+const ASK_LIMIT = 20
 
 type Env = { RATE_LIMITER: DurableObjectNamespace<RateLimiter>; DB: D1Database; AI?: Ai }
 
@@ -122,6 +126,26 @@ export default {
       const found = await loadReport(env.DB, id)
       if (!found) return json({ error: 'relatorio nao encontrado ou expirado' }, 404)
       return json({ domain: found.domain, ...(await generateFixes(found.domain, found.findings, env.AI)) }, 200, rateHeaders(limit))
+    }
+    if (pathname === '/api/ask') {
+      if (req.method !== 'POST') return json({ error: 'use POST' }, 405)
+      const body = await req.json<{ question?: unknown; id?: unknown }>().catch(() => null)
+      const question = typeof body?.question === 'string' ? body.question.trim() : ''
+      if (question.length < 2 || question.length > MAX_QUESTION) return json({ error: `a pergunta deve ter de 2 a ${MAX_QUESTION} caracteres` }, 400)
+      const ip = req.headers.get('cf-connecting-ip') ?? 'local'
+      const limit = await checkLimit(env.RATE_LIMITER, pathname, ip, ASK_LIMIT)
+      if (!limit.ok) {
+        return json({ error: `limite de ${ASK_LIMIT} perguntas por hora atingido`, retryAfter: limit.retryAfter }, 429, {
+          'retry-after': String(limit.retryAfter),
+          'x-ratelimit-limit': String(ASK_LIMIT),
+          'x-ratelimit-remaining': '0',
+        })
+      }
+      // o contexto vem do relatorio salvo; id invalido ou vencido so tira o contexto, a pergunta ainda vale
+      const reportId = typeof body?.id === 'string' && isId(body.id) ? body.id : null
+      const found = reportId ? await loadReport(env.DB, reportId) : null
+      const ctx = found ? { domain: found.domain, grade: found.grade, findings: found.findings } : null
+      return json(await answerQuestion(question, ctx, found ? reportId : null, env.DB, env.AI))
     }
     const route = routes[pathname]
     if (!route) return json({ error: 'nao encontrado' }, 404)

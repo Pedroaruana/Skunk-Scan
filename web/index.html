@@ -647,7 +647,6 @@ const $ = (id) => document.getElementById(id)
 const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e }
 const cell = (bg) => { const d = el('div'); if (bg) d.style.background = bg; return d }
 const hash = (s) => s.split('').reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7)
-const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 const clean = (s) => (s || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '').toLowerCase()
 const today = () => { const d = new Date(); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') }
 
@@ -820,10 +819,7 @@ S.timer = setTimeout(step, l.wait ?? 140)
 }
 step()
 }
-const typeAnswer = (text) => {
-setRunning(true, false)
-print(L('dim', 'pensando...'))
-S.timer = setTimeout(() => {
+const typeText = (text) => {
 const x = print(L('ai', '')).querySelector('.x')
 let i = 0
 const tick = () => {
@@ -832,7 +828,23 @@ if (i < text.length) S.timer = setTimeout(tick, 16)
 else setRunning(false)
 }
 tick()
-}, 700)
+}
+
+// a resposta vem da API (IA com cache e plano B por palavra-chave); o relatorio da ultima varredura da o contexto
+const ask = (question) => {
+setRunning(true, false)
+print(L('dim', 'pensando...'))
+return fetch(API + '/api/ask', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ question, id: S.lastId }) })
+.then(async (res) => {
+const body = await res.json().catch(() => ({}))
+if (!res.ok) throw Object.assign(new Error(body.error || 'erro ' + res.status), { retryAfter: body.retryAfter })
+typeText(body.answer)
+})
+.catch((e) => {
+print(L('fail', e.message === 'Failed to fetch' ? 'nao consegui falar com a api. tente de novo em instantes.' : e.message))
+if (e.retryAfter) print(L('dim', 'tente de novo em ' + Math.ceil(e.retryAfter / 60) + ' min.'))
+setRunning(false)
+})
 }
 
 /* ---------- varredura real (SSE) ---------- */
@@ -924,26 +936,6 @@ return { grade, https: 'ok', csp: g === 0 ? 'ok' : 'ausente', dmarc: g <= 1 ? 'o
 }
 const needScan = () => { say([L('fail', 'nenhuma varredura ainda. use /scan <dominio> primeiro')]) }
 
-const answer = (q) => {
-const t = norm(q)
-const d = S.lastScan
-if (/dmarc/.test(t)) return 'dmarc e um registro no dns que diz aos provedores de e-mail o que fazer com mensagens que usam o seu dominio sem autorizacao. sem ele, um golpista consegue mandar e-mail como contato@suaempresa.com.br e cair na caixa de entrada do seu cliente. a correcao e um registro TXT em _dmarc.seudominio, e o /corrigir gera ele pronto.'
-if (/spf/.test(t)) return 'spf e a lista de servidores autorizados a mandar e-mail pelo seu dominio. ajuda, mas so protege de verdade junto com o dmarc, que diz o que fazer quando a mensagem nao passa no teste.'
-if (/dkim/.test(t)) return 'dkim assina cada e-mail com uma chave, e quem recebe confere a assinatura no seu dns. prova que a mensagem saiu de voce e nao foi alterada no caminho.'
-if (/csp|content.security/.test(t)) return 'content-security-policy e um header que diz ao navegador de onde a pagina pode carregar scripts. sem ele, um script injetado roda livre e pode roubar dados de quem acessa o site.'
-if (/hsts/.test(t)) return 'hsts obriga o navegador a usar sempre https no seu site, mesmo se alguem digitar http. evita que a conexao seja interceptada numa rede wi-fi publica.'
-if (/cve|vulnerab|nginx|versao/.test(t)) return 'cve e o codigo publico de uma falha conhecida. quando o servidor mostra a versao, como nginx/1.18.0, qualquer pessoa consulta quais cves afetam essa versao. o skunkscan faz essa consulta antes do golpista e diz como corrigir: esconder a versao e atualizar.'
-if (/subdom|staging|dev\b|admin/.test(t)) return 'subdominios como dev. e staging. costumam ser criados para teste e esquecidos no ar, sem senha e sem atualizacao. o skunkscan acha eles nos registros publicos de certificados, que todo certificado https gera.'
-if (/golpe|phishing|falso|imita|parecido/.test(t)) return 'golpistas registram dominios parecidos com o seu, como loja-promo.com ou trocando o por 0, para enganar seus clientes. o skunkscan testa dezenas de variacoes e avisa quais ja foram registradas, de preferencia antes do golpe comecar.'
-if (/nota|calcul/.test(t)) return 'a nota vai de A a D. nenhum problema grave e no maximo 1 medio da A. 2 ou mais graves, ou https quebrado, da D. a regra completa esta em /como-funciona.'
-if (/segur|meu site|protegid|risco/.test(t)) {
-if (!d) return 'ainda nao sei, porque nenhum site foi escaneado. rode /scan seusite.com.br e me pergunte de novo.'
-return 'pela ultima varredura de ' + d + ', ainda nao. a nota foi D. o mais urgente: esconder a versao do nginx e atualizar ele, que tem 2 cves conhecidas, e criar o registro dmarc. aplicando as correcoes do /corrigir, a nota estimada vai para A.'
-}
-if (/ola|oi\b|bom dia|boa tarde|boa noite/.test(t)) return 'oi! sou a ia do skunkscan. posso explicar qualquer item da varredura ou dizer o que corrigir primeiro. pergunte, por exemplo: o que e dmarc?'
-return 'ainda estou aprendendo sobre isso. pergunte sobre dmarc, spf, csp, hsts, cves, subdominios, golpes com dominios parecidos ou se o seu site esta seguro.'
-}
-
 const smoke = () => {
 const t = $('term'); const s = el('div', 'smoke')
 for (let i = 0; i < 46; i++) {
@@ -984,7 +976,7 @@ return say([L('fail', 'cd: ' + (p || '~') + ': diretorio nao encontrado')])
 if (low === 'man') return go('#/docs')
 if (low === 'whoami') return say([L('normal', 'visitante. nivel de acesso: curioso.')])
 if (low === 'exit') return say([L('dim', 'nao tem saida. o gamba fica.')])
-if (!c0.startsWith('/') && /\?$/.test(text)) return typeAnswer(answer(text))
+if (!c0.startsWith('/') && /\?$/.test(text)) return ask(text)
 
 const c = (c0.startsWith('/') ? c0 : '/' + c0).toLowerCase()
 
@@ -1029,7 +1021,7 @@ if (e.retryAfter) print(L('dim', 'tente de novo em ' + Math.ceil(e.retryAfter / 
 if (c === '/perguntar') {
 const q = args.join(' ')
 if (!q) return say([L('fail', 'uso: /perguntar <pergunta>   ex.: /perguntar o que e dmarc?')])
-return typeAnswer(answer(q))
+return ask(q)
 }
 if (c === '/evolucao') {
 const d = clean(args[0]) || S.lastScan

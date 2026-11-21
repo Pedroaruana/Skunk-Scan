@@ -3,13 +3,37 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SkunkScan</title>
-<meta name="description" content="Auditoria passiva de seguranca para sites de pequenas empresas, num terminal no navegador.">
+<title>SkunkScan: auditoria passiva de seguranca para sites</title>
+<meta name="description" content="Digite o endereco do seu site num terminal no navegador e receba uma nota de A a D, os problemas por gravidade e as correcoes prontas. Analise 100% passiva, feita para pequenas empresas.">
+<meta name="theme-color" content="#121212">
+<link rel="canonical" href="https://pedroaruana.github.io/Skunk-Scan/">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+
+<meta property="og:type" content="website">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:site_name" content="SkunkScan">
+<meta property="og:title" content="SkunkScan: auditoria passiva de seguranca para sites">
+<meta property="og:description" content="Uma nota de A a D para o seu site, com os problemas por gravidade e as correcoes prontas. Sem instalar nada e sem encostar no site.">
+<meta property="og:url" content="https://pedroaruana.github.io/Skunk-Scan/">
+<meta property="og:image" content="https://pedroaruana.github.io/Skunk-Scan/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="SKUNK SCAN em letras de pixel ao lado de um cadeado">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="SkunkScan: auditoria passiva de seguranca para sites">
+<meta name="twitter:description" content="Uma nota de A a D para o seu site, com os problemas por gravidade e as correcoes prontas.">
+<meta name="twitter:image" content="https://pedroaruana.github.io/Skunk-Scan/og.png">
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
 <div id="root"></div>
+<noscript>
+<p style="font-family:monospace;color:#e6e6e6;background:#121212;padding:24px;margin:0">
+SkunkScan analisa a seguranca de um site de forma passiva (certificado, headers, DNS, subdominios, CVEs e dominios parecidos) e devolve uma nota de A a D com as correcoes. Este site precisa de JavaScript para o terminal funcionar.
+</p>
+</noscript>
 <script type="module" src="/src/main.tsx"></script>
 </body>
 </html>

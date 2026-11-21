@@ -1,0 +1,52 @@
+name: Deploy API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - api/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# deploy nunca roda em paralelo, mas tambem nao cancela um que ja comecou
+concurrency:
+  group: deploy-api
+  cancel-in-progress: false
+
+jobs:
+  worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: api
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+
+      - run: npm ci
+
+      - name: Tipos e testes
+        run: |
+          npm run typecheck
+          npm test
+
+      # sem os secrets o deploy e pulado (nao falha), pra nao deixar a main vermelha antes da configuracao
+      - name: Migrations e deploy do Worker
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::warning::Secrets CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID nao configurados. Deploy pulado."
+            exit 0
+          fi
+          npx wrangler d1 migrations apply skunkscan --remote
+          npx wrangler deploy

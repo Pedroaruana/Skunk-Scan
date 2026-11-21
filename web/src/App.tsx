@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { LegalDoc } from './components/LegalDoc'
 import { cookieNoticeSeen, markCookieNoticeSeen } from './lib/storage'
 import { useRoute, type View } from './lib/router'
+import { useDocumentTitle } from './lib/titles'
 import { useTerminal } from './terminal/useTerminal'
 import { Docs } from './views/Docs'
 import { Home } from './views/Home'
@@ -30,6 +31,7 @@ const Dots = () => (
 
 export const App = () => {
   const { view, id, doc, closeDoc } = useRoute()
+  useDocumentTitle(view, doc)
   const term = useTerminal()
   const [cookies, setCookies] = useState(() => !cookieNoticeSeen())
   const say = useRef(term.say)

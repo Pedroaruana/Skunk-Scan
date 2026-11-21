@@ -1,0 +1,62 @@
+export const CMDS: [name: string, args: string, desc: string][] = [
+  ['/scan', '<dominio>', 'varredura completa ao vivo'],
+  ['/corrigir', '', 'correcoes prontas geradas por ia'],
+  ['/perguntar', '<pergunta>', 'tire duvidas com a ia'],
+  ['/mapa', '[dominio]', 'mapa da superficie de ataque'],
+  ['/evolucao', '[dominio]', 'grafico da nota ao longo do tempo'],
+  ['/compartilhar', '', 'pagina publica do resultado'],
+  ['/relatorio', '', 'baixa o relatorio em pdf'],
+  ['/comparar', '<dominio1> <dominio2>', 'compara dois sites'],
+  ['/historico', '', 'varreduras anteriores'],
+  ['/monitorar', '<dominio> [webhook]', 'verificacao diaria com feed e alerta'],
+  ['/selo', '<dominio>', 'selo para sites com nota A'],
+  ['/radar', '', 'seguranca dos sites por estado'],
+  ['/como-funciona', '', 'como cada checagem e feita'],
+  ['/docs', '', 'documentacao da cli e da api'],
+  ['/termos', '', 'termos de uso'],
+  ['/privacidade', '', 'politica de privacidade'],
+  ['/limpar', '', 'limpa o terminal'],
+  ['/ajuda', '', 'lista os comandos'],
+]
+
+export const CHIPS = [
+  '/ajuda',
+  '/scan lojadojoao.com.br',
+  '/corrigir',
+  '/perguntar meu site esta seguro?',
+  '/mapa',
+  '/evolucao',
+  '/compartilhar',
+  '/relatorio',
+  '/comparar lojadojoao.com.br padariabomgosto.com',
+  '/selo',
+  '/radar',
+  '/scan localhost',
+]
+
+export const FEATURES: [title: string, desc: string, cmd: string][] = [
+  ['terminal de verdade', 'comandos, historico com seta para cima e autocomplete com tab', '/ajuda'],
+  ['varredura ao vivo', 'cada checagem aparece em tempo real, com barra de progresso', '/scan dominio'],
+  ['subdominios esquecidos', 'acha dev., staging. e admin. pelos registros publicos de certificados', '/scan dominio'],
+  ['vulnerabilidades conhecidas', 'cruza a versao exposta do servidor com as cves publicas', '/scan dominio'],
+  ['sites imitando o seu', 'testa variacoes do dominio e mostra quais ja foram registradas', '/scan dominio'],
+  ['correcao pronta com ia', 'gera a config, o registro dns ou o header exato para copiar', '/corrigir'],
+  ['pergunte a ia', 'tire duvidas sobre seguranca usando o resultado do seu site como contexto', '/perguntar'],
+  ['mapa da superficie de ataque', 'grafo interativo com dominio, subdominios, servidores e riscos', '/mapa'],
+  ['evolucao da nota', 'grafico com a nota do site em cada varredura', '/evolucao dominio'],
+  ['radar brasil', 'mapa com a seguranca dos sites de pequenas empresas por estado', '/radar'],
+  ['pagina do resultado', 'relatorio publico com nota, problemas por gravidade e correcoes', '/compartilhar'],
+  ['relatorio em pdf', 'para mandar ao desenvolvedor ou ao cliente', '/relatorio'],
+  ['monitoramento diario', 'confere o site todo dia, mantem um feed atom da nota e avisa por webhook se ela cair', '/monitorar'],
+  ['selo verificado', 'sites com nota A exibem o selo, que some sozinho se a nota cair', '/selo dominio'],
+  ['linha de comando e api', 'a mesma varredura no terminal ou integrada ao seu sistema', 'npx skunkscan'],
+  ['protecao contra abuso', '5 varreduras por hora por ip e bloqueio de ips internos e localhost', 'automatico'],
+]
+
+export const CHECKS: [title: string, desc: string, source: string][] = [
+  ['tls e headers', 'Le o certificado, confere a validade e o redirecionamento para HTTPS. Depois olha os headers de seguranca que o servidor manda, como HSTS e Content-Security-Policy, e se ele mostra a versao.', 'fonte: o proprio site, numa unica requisicao HTTPS'],
+  ['e-mail', 'Consulta no DNS os registros SPF, DKIM e DMARC. Juntos, eles impedem que alguem mande e-mail se passando pela empresa.', 'fonte: dns publico'],
+  ['subdominios esquecidos', 'Todo certificado HTTPS emitido no mundo fica registrado em logs publicos. O SkunkScan busca nesses logs os subdominios do site e testa quais ainda estao no ar.', 'fonte: certificate transparency (crt.sh)'],
+  ['vulnerabilidades conhecidas', 'Quando o servidor revela a versao, cruzamos com as bases publicas de vulnerabilidades e mostramos cada CVE com a gravidade.', 'fonte: osv.dev e nvd'],
+  ['dominios imitando o seu', 'Gera dezenas de variacoes do dominio, com letra trocada, hifen, outro final, e confere quais ja foram registradas e ha quanto tempo.', 'fonte: rdap, o whois moderno'],
+]

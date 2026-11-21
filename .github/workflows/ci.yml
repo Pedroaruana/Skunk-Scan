@@ -40,3 +40,29 @@ jobs:
       # aplica as migrations num D1 local vazio, pra um SQL com erro quebrar aqui e nao no deploy
       - name: Migrations
         run: npx wrangler d1 migrations apply skunkscan --local --persist-to "$RUNNER_TEMP/d1"
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci
+
+      - name: Tipos
+        run: npm run typecheck
+
+      - name: Testes
+        run: npm test
+
+      - name: Build
+        run: npm run build

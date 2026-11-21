@@ -27,6 +27,8 @@ jobs:
     env:
       # endereco publico do Worker; o front le isso em tempo de build
       VITE_API_URL: https://skunkscan-api.aruanapedro.workers.dev
+      # token publico do Cloudflare Web Analytics, vem de Settings > Variables > Actions; vazio = sem metricas
+      VITE_CF_BEACON_TOKEN: ${{ vars.CF_BEACON_TOKEN }}
     steps:
       - uses: actions/checkout@v5
 

@@ -9,6 +9,7 @@ import {
   removeMonitor,
   streamScan,
 } from '../lib/api'
+import { formatStacked, formatTable, verdict, type Snapshot } from '../lib/compare'
 import { ago, chart, cleanDomain, evolutionMessage, isInternalTarget } from '../lib/format'
 import { go } from '../lib/router'
 import { copyText, loadHistory, saveHistory } from '../lib/storage'
@@ -22,7 +23,10 @@ const L = (kind: LineInput['kind'], text: string, wait?: number, href?: string):
 
 export const shareUrl = (id: string): string => location.origin + location.pathname + '#/r/' + id
 
-const helpLines = (count: number): LineInput[] => CMDS.slice(0, count).map(([n, a, d]) => L('normal', (n + ' ' + a).padEnd(36) + d))
+// em tela larga o comando e a descricao ficam na mesma linha; em tela estreita a descricao desce, senao a linha quebra no meio
+const narrow = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches
+const helpLines = (count: number): LineInput[] =>
+  CMDS.slice(0, count).flatMap(([n, a, d]) => (narrow() ? [L('normal', n + ' ' + a), L('dim', '    ' + d)] : [L('normal', (n + ' ' + a).padEnd(36) + d)]))
 
 const intro = (): LineInput[] => [
   L('dim', 'skunkscan v0.1  auditoria passiva de seguranca'),
@@ -30,12 +34,6 @@ const intro = (): LineInput[] => [
   ...helpLines(12),
   L('dim', '/ajuda mostra todos. tab completa, seta para cima repete, perguntas com ? vao para a ia.'),
 ]
-
-// nota usada nas telas que ainda comparam dominios pelo historico deste navegador
-const profile = (grade: string) => {
-  const g = 'ABCD'.indexOf(grade)
-  return { grade, https: 'ok', csp: g === 0 ? 'ok' : 'ausente', dmarc: g <= 1 ? 'ok' : 'ausente', versao: g >= 2 ? 'exposta' : 'oculta', subs: [0, 0, 1, 3][g], falsos: [0, 0, 1, 2][g] }
-}
 
 export type Terminal = ReturnType<typeof useTerminal>
 
@@ -269,6 +267,56 @@ export const useTerminal = () => {
     }
   }
 
+  // escaneia um dominio sem imprimir os achados e devolve nota e achados, pra comparar
+  const scanSnapshot = async (domain: string, onStep: (steps: number) => void): Promise<Snapshot & { id: string | null }> => {
+    const findings: Finding[] = []
+    let steps = 0
+    const scan = await streamScan('/api/scan', domain, {
+      step: () => onStep(++steps),
+      finding: (f) => findings.push(f),
+      warn: () => {},
+      error: () => {},
+      remaining: setScansLeft,
+    })
+    if (!scan) throw new Error('a varredura de ' + domain + ' terminou sem resultado.')
+    if (!scan.grade) throw new Error('sem nota para ' + domain + ': o site nao respondeu a requisicao web.')
+    return { domain, grade: scan.grade, grave: scan.grave, medio: scan.medio, findings, id: scan.id }
+  }
+
+  // Compara dois sites com duas varreduras de verdade (gasta 2 das 5 do limite por hora).
+  const comparar = async (rawA: string | undefined, rawB: string | undefined) => {
+    const a = cleanDomain(rawA)
+    const b = cleanDomain(rawB)
+    if (!a || !b) return say([L('fail', 'uso: /comparar <dominio1> <dominio2>   ex.: /comparar example.com example.org')])
+    if (a === b) return say([L('fail', 'informe dois dominios diferentes.')])
+    for (const d of [a, b]) {
+      if (isInternalTarget(d)) return say([L('fail', 'alvo bloqueado: localhost e ips internos nao podem ser escaneados')])
+      if (!d.includes('.')) return say([L('fail', 'dominio invalido: ' + d)])
+    }
+    setRunning(true)
+    setProgress(0)
+    try {
+      const snaps: (Snapshot & { id: string | null })[] = []
+      for (const [i, d] of [a, b].entries()) {
+        print(L('dim', `escaneando ${d} (${i + 1}/2)...`))
+        snaps.push(await scanSnapshot(d, (n) => setProgress(Math.round(((i + Math.min(n, 4) / 4) / 2) * 100))))
+      }
+      setProgress(100)
+      const [sa, sb] = snaps
+      // as duas varreduras entram no historico, entao o /mapa e os relatorios de cada uma funcionam
+      const now = Date.now()
+      const fresh: HistoryEntry[] = [sb, sa].map((x) => ({ id: x.id, domain: x.domain, grade: x.grade, at: now }))
+      setHistory([...fresh, ...s.current.history.filter((h) => h.domain !== a && h.domain !== b)])
+      const table = narrow() ? formatStacked(sa, sb).slice(1).flatMap(([label, v]) => [L('dim', label), L('normal', '  ' + v)]) : formatTable(sa, sb).map((t) => L('normal', t))
+      say([L('title', 'comparacao  ' + a + '  x  ' + b), ...(narrow() ? [L('dim', 'esquerda: ' + a), L('dim', 'direita:  ' + b)] : []), ...table, L('ok', verdict(sa, sb))])
+      say([L('dim', 'cada site tem seu relatorio: /mapa ' + a + ' ou /mapa ' + b)])
+    } catch (e) {
+      failWith(e, 'a comparacao usa 2 varreduras.')
+    } finally {
+      setRunning(false)
+    }
+  }
+
   // easter egg: o gamba solta o spray e limpa o terminal
   const gamba = () => {
     setSmoke(true)
@@ -351,27 +399,8 @@ export const useTerminal = () => {
           L('title', 'historico (neste navegador, clique para abrir o relatorio)'),
           ...hist.map((x) => L(x.id ? 'link' : 'normal', ago(x.at).padEnd(8) + x.domain.padEnd(30) + 'nota ' + x.grade, 0, x.id ? '#/r/' + x.id : undefined)),
         ])
-      case '/comparar': {
-        const a = cleanDomain(args[0])
-        const b = cleanDomain(args[1])
-        if (!a || !b) return say([L('fail', 'uso: /comparar <dominio1> <dominio2>')])
-        const gradeOf = (d: string) => hist.find((x) => x.domain === d)?.grade ?? 'D'
-        const pa = profile(gradeOf(a))
-        const pb = profile(gradeOf(b))
-        const row = (k: string, x: string | number, y: string | number) => L('normal', k.padEnd(24) + String(x).padEnd(28) + y, 160)
-        return play([
-          L('dim', 'carregando as duas varreduras...', 600),
-          row('', a, b),
-          row('nota', pa.grade, pb.grade),
-          row('https', pa.https, pb.https),
-          row('content-security-policy', pa.csp, pb.csp),
-          row('dmarc', pa.dmarc, pb.dmarc),
-          row('versao do servidor', pa.versao, pb.versao),
-          row('subdominios expostos', pa.subs, pb.subs),
-          row('sites imitando', pa.falsos, pb.falsos),
-          L('dim', (pa.grade <= pb.grade ? a : b) + ' esta mais protegido', 100),
-        ])
-      }
+      case '/comparar':
+        return void comparar(args[0], args[1])
       case '/monitorar':
         return void monitorar(args)
       case '/relatorio': {

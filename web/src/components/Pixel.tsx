@@ -11,23 +11,27 @@ const FONT: Record<string, string[]> = {
   D: ['11110', '10001', '10001', '10001', '11110'],
 }
 
-export const PixelLetter = ({ ch, size = 16 }: { ch: string; size?: number }) => (
-  <div
-    className="grid"
-    style={{ gridTemplateColumns: `repeat(5,${size}px)`, gridAutoRows: `${size}px`, gap: Math.max(2, size / 8) }}
-  >
-    {(FONT[ch] ?? FONT.A).join('').split('').map((c, i) => (
-      <div key={i} className={c === '1' ? 'letter-on' : ''} />
-    ))}
-  </div>
-)
+// size e em px; cssSize aceita uma expressao CSS (var, min, calc) pra letra acompanhar a largura da tela
+export const PixelLetter = ({ ch, size = 16, cssSize }: { ch: string; size?: number; cssSize?: string }) => {
+  const cell = cssSize ?? `${size}px`
+  return (
+    <div className="grid" style={{ gridTemplateColumns: `repeat(5,${cell})`, gridAutoRows: cell, gap: cssSize ? `max(2px, calc(${cell} / 8))` : Math.max(2, size / 8) }}>
+      {(FONT[ch] ?? FONT.A).join('').split('').map((c, i) => (
+        <div key={i} className={c === '1' ? 'letter-on' : ''} />
+      ))}
+    </div>
+  )
+}
+
+// 16px no desktop; no celular a palavra SKUNK (a maior) cabe inteira na largura disponivel
+const TITLE_CELL = 'min(16px, calc((100vw - 56px) / 34))'
 
 export const PixelTitle = () => (
-  <div className="flex flex-col gap-[22px] pt-2 pb-2.5" role="img" aria-label="SKUNK SCAN">
+  <div className="flex flex-col pt-2 pb-2.5" style={{ gap: `calc(${TITLE_CELL} * 1.4)` }} role="img" aria-label="SKUNK SCAN">
     {['SKUNK', 'SCAN'].map((w) => (
-      <div key={w} className="flex flex-wrap gap-5">
+      <div key={w} className="flex" style={{ gap: `calc(${TITLE_CELL} * 1.25)` }}>
         {w.split('').map((ch, i) => (
-          <PixelLetter key={i} ch={ch} />
+          <PixelLetter key={i} ch={ch} cssSize={TITLE_CELL} />
         ))}
       </div>
     ))}

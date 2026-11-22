@@ -77,13 +77,13 @@ export const MapView = ({ id, fallbackId }: { id: string | null; fallbackId: str
         <h1 className="m-0 text-[28px] tracking-[-0.01em] text-bright">Mapa da superficie de ataque</h1>
         <p className="m-0 max-w-[760px] text-mute">
           Tudo o que um atacante enxerga do lado de fora de <b className="text-bright">{state.kind === 'ready' ? state.domain : ''}</b>. Arraste os nos e clique para ver os detalhes.
+          <span className="sm:hidden"> No celular, deslize o fundo do mapa para os lados.</span>
         </p>
       </div>
       <div className="flex flex-wrap gap-6 pt-7 pb-8">
-        <div
-          ref={graphRef}
-          className="graph-bg relative h-[600px] min-w-0 flex-[999_1_620px] touch-none overflow-hidden border border-edge bg-deep"
-        >
+        {/* no celular o mapa fica mais largo que a tela e desliza para os lados, senao os nos da borda sao cortados */}
+        <div className="min-w-0 flex-[999_1_620px] overflow-x-auto">
+        <div ref={graphRef} className="graph-bg relative h-[600px] min-w-[640px] overflow-hidden border border-edge bg-deep">
           <svg className="pointer-events-none absolute inset-0 size-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
             {edges.map((e) => {
               const a = at(e.from)
@@ -122,6 +122,7 @@ export const MapView = ({ id, fallbackId }: { id: string | null; fallbackId: str
               {n.label}
             </button>
           ))}
+        </div>
         </div>
         <aside className="flex min-w-0 flex-[1_1_300px] flex-col gap-2.5 self-start border border-dashed border-line px-5 py-[18px]" aria-live="polite">
           <div className="mb-1 font-bold text-bright">{info ? info.label : state.kind === 'idle' ? 'Sem mapa' : 'Clique em um no'}</div>

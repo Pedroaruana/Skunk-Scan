@@ -21,14 +21,14 @@ export const CMDS: [name: string, args: string, desc: string][] = [
 
 export const CHIPS = [
   '/ajuda',
-  '/scan lojadojoao.com.br',
+  '/scan example.com',
   '/corrigir',
   '/perguntar meu site esta seguro?',
   '/mapa',
   '/evolucao',
   '/compartilhar',
   '/relatorio',
-  '/comparar lojadojoao.com.br padariabomgosto.com',
+  '/comparar example.com example.org',
   '/selo',
   '/radar',
   '/scan localhost',

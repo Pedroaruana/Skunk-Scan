@@ -76,7 +76,7 @@ export const Radar = () => {
 
       <div className="flex flex-wrap items-start gap-10 pt-7 pb-8">
         <div>
-          <div className="grid flex-none gap-1" style={{ gridTemplateColumns: 'repeat(8,64px)', gridAutoRows: '64px' }}>
+          <div className="grid w-full max-w-[540px] gap-1" style={{ gridTemplateColumns: 'repeat(8,minmax(0,1fr))' }}>
             {UF.map(([u, c, r]) => {
               const v = val(u, metric)
               const [g, t] = shade(v, lo, hi)
@@ -86,7 +86,7 @@ export const Radar = () => {
                   type="button"
                   aria-label={`${u}, ${v}%`}
                   onClick={() => setUf(uf === u ? null : u)}
-                  className={'flex cursor-pointer flex-col items-center justify-center border-0 p-0 text-[13px] leading-tight font-bold ' + (uf === u ? 'outline-2 outline-offset-[3px] outline-bright' : '')}
+                  className={'flex aspect-square cursor-pointer flex-col items-center justify-center border-0 p-0 text-xs leading-tight font-bold sm:text-[13px] ' + (uf === u ? 'outline-2 outline-offset-[3px] outline-bright' : '')}
                   style={{ gridColumn: c + 1, gridRow: r + 1, background: `rgb(${g},${g},${g})`, color: t > 0.55 ? '#0b0b0b' : '#f2f2f2' }}
                 >
                   {u}

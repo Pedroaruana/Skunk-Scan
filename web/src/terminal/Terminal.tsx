@@ -132,7 +132,7 @@ export const Terminal = ({ term }: { term: TerminalApi }) => {
           spellCheck={false}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder={running ? 'executando...' : 'digite um comando, ex.: /scan seusite.com.br'}
+          placeholder={running ? 'executando...' : 'comando, ex.: /scan site.com.br'}
           className="min-h-11 min-w-0 flex-[1_1_260px] border-0 bg-transparent text-[15px] text-bright placeholder:text-faint focus:outline-none"
         />
         <span className="text-xs text-mute">varreduras: {scansLeft}/5 por hora</span>

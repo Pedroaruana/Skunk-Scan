@@ -66,7 +66,8 @@ export type ScanHandlers = {
 export const streamScan = async (path: string, domain: string, h: ScanHandlers): Promise<ScanDone | null> => {
   const res = await post(path, { domain })
   const left = res.headers.get('x-ratelimit-remaining')
-  if (left !== null) h.remaining(Number(left))
+  // cada rota tem a sua contagem; o contador da tela e o das varreduras, nao o dos dominios parecidos
+  if (left !== null && path === '/api/scan') h.remaining(Number(left))
   if (!res.ok) throw await failure(res)
   let done: ScanDone | null = null
   await readSse(res, (ev, data) => {

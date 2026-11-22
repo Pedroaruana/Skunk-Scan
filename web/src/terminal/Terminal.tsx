@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { CMDS } from '../data/commands'
+import { SCAN_LIMIT } from '../data/limits'
 import type { Line, LineKind } from '../lib/types'
 import type { Terminal as TerminalApi } from './useTerminal'
 
@@ -135,7 +136,7 @@ export const Terminal = ({ term }: { term: TerminalApi }) => {
           placeholder={running ? 'executando...' : 'comando, ex.: /scan site.com.br'}
           className="min-h-11 min-w-0 flex-[1_1_260px] border-0 bg-transparent text-[15px] text-bright placeholder:text-faint focus:outline-none"
         />
-        <span className="text-xs text-mute">varreduras: {scansLeft}/5 por hora</span>
+        <span className="text-xs text-mute">varreduras: {scansLeft}/{SCAN_LIMIT} por hora</span>
         <button type="button" onClick={submit} className="inline-flex min-h-11 items-center bg-bright px-[18px] text-[13px] font-bold text-ink">
           enter
         </button>

@@ -15,6 +15,7 @@ import { go } from '../lib/router'
 import { copyText, loadHistory, saveHistory } from '../lib/storage'
 import type { Finding, HistoryEntry, Line, LineInput, Severity } from '../lib/types'
 import { CMDS } from '../data/commands'
+import { SCAN_LIMIT } from '../data/limits'
 
 const STEPS = 5
 const SEV_KIND: Record<Severity, LineInput['kind']> = { ok: 'ok', medio: 'warn', grave: 'fail', info: 'dim' }
@@ -42,7 +43,7 @@ export const useTerminal = () => {
   const [running, setRunningState] = useState(false)
   const [showProgress, setShowProgress] = useState(false)
   const [progress, setProgress] = useState(0)
-  const [scansLeft, setScansLeft] = useState(5)
+  const [scansLeft, setScansLeft] = useState(SCAN_LIMIT)
   const [history, setHistoryState] = useState<HistoryEntry[]>(loadHistory)
   const [smoke, setSmoke] = useState(false)
   const [lastId, setLastId] = useState<string | null>(null)

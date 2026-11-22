@@ -10,7 +10,7 @@ O SkunkScan verifica:
 - Versao exposta do servidor e CVEs conhecidas dessa versao
 - Dominios registrados que imitam o dominio analisado
 
-Limites: 5 varreduras por hora por IP. Localhost e IPs internos sao bloqueados.
+Limites: 15 varreduras por hora por IP. Localhost e IPs internos sao bloqueados.
 
 ## Uso
 

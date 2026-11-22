@@ -3,7 +3,7 @@ import { sseResponse, type Send } from './sse'
 import { checkHost } from './ssrf'
 import { checkLookalikes } from './checks/lookalikes'
 import { countFindings, gradeOf } from './scoring'
-import { checkLimit, LIMIT, RateLimiter, type LimitResult } from './ratelimit'
+import { checkLimit, LIMIT, MONITOR_LIMIT, RateLimiter, type LimitResult } from './ratelimit'
 import { answerQuestion, MAX_QUESTION } from './ask'
 import { generateFixes } from './llm'
 import { atomFeed } from './feed'
@@ -74,9 +74,9 @@ const stream = (domain: string, route: (domain: string, run: Run) => Promise<voi
     await send('done', { domain, total: findings.length, grade, ...counts, incomplete: failed, id })
   }, headers)
 
-const rateHeaders = (l: LimitResult) => ({
+const rateHeaders = (l: LimitResult, max: number = LIMIT) => ({
   ...cors,
-  'x-ratelimit-limit': String(LIMIT),
+  'x-ratelimit-limit': String(max),
   'x-ratelimit-remaining': String(l.remaining),
 })
 
@@ -112,11 +112,11 @@ export default {
       const webhook = wantsWebhook ? parseWebhook(body?.webhook) : null
       if (wantsWebhook && !webhook) return json({ error: 'webhook invalido: use uma url https publica' }, 400)
       const ip = req.headers.get('cf-connecting-ip') ?? 'local'
-      const limit = await checkLimit(env.RATE_LIMITER, pathname, ip)
+      const limit = await checkLimit(env.RATE_LIMITER, pathname, ip, MONITOR_LIMIT)
       if (!limit.ok) {
-        return json({ error: 'limite de 5 cadastros por hora atingido', retryAfter: limit.retryAfter }, 429, {
+        return json({ error: `limite de ${MONITOR_LIMIT} cadastros por hora atingido`, retryAfter: limit.retryAfter }, 429, {
           'retry-after': String(limit.retryAfter),
-          'x-ratelimit-limit': String(LIMIT),
+          'x-ratelimit-limit': String(MONITOR_LIMIT),
           'x-ratelimit-remaining': '0',
         })
       }
@@ -128,7 +128,7 @@ export default {
           ? json({ error: 'limite de monitores atingido, tente mais tarde' }, 503)
           : json({ error: 'esse dominio ja esta monitorado com esse webhook' }, 409)
       }
-      return json({ domain, token: created.token, feed: `/api/feed/${domain}`, webhook: webhook !== null, expiresInDays: TTL_DAYS }, 201, rateHeaders(limit))
+      return json({ domain, token: created.token, feed: `/api/feed/${domain}`, webhook: webhook !== null, expiresInDays: TTL_DAYS }, 201, rateHeaders(limit, MONITOR_LIMIT))
     }
     if (pathname.startsWith('/api/selo/')) {
       if (req.method !== 'GET') return json({ error: 'use GET' }, 405)
@@ -154,7 +154,7 @@ export default {
       const ip = req.headers.get('cf-connecting-ip') ?? 'local'
       const limit = await checkLimit(env.RATE_LIMITER, pathname, ip)
       if (!limit.ok) {
-        return json({ error: 'limite de 5 pedidos de correcao por hora atingido', retryAfter: limit.retryAfter }, 429, {
+        return json({ error: `limite de ${LIMIT} pedidos de correcao por hora atingido`, retryAfter: limit.retryAfter }, 429, {
           'retry-after': String(limit.retryAfter),
           'x-ratelimit-limit': String(LIMIT),
           'x-ratelimit-remaining': '0',
@@ -197,7 +197,7 @@ export default {
     const ip = req.headers.get('cf-connecting-ip') ?? 'local'
     const limit = await checkLimit(env.RATE_LIMITER, pathname, ip)
     if (!limit.ok) {
-      return json({ error: 'limite de 5 scans por hora atingido', retryAfter: limit.retryAfter }, 429, {
+      return json({ error: `limite de ${LIMIT} scans por hora atingido`, retryAfter: limit.retryAfter }, 429, {
         'retry-after': String(limit.retryAfter),
         'x-ratelimit-limit': String(LIMIT),
         'x-ratelimit-remaining': '0',

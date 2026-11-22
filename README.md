@@ -123,7 +123,7 @@ flowchart LR
 
 **D1 e um link imprevisível como único acesso.** O relatório completo fica acessível só por quem tem o link, um código aleatório de 12 caracteres hexadecimais. O conteúdo expira em 30 dias. A nota e a data ficam por 180 dias, só para o gráfico de evolução, e o endpoint público de histórico nunca devolve achados nem o id do relatório.
 
-**Limite por IP com Durable Object.** O limite de 5 varreduras por hora precisava de uma janela de uma hora, e o rate limit nativo do Workers só aceita janelas de 10 ou 60 segundos. Então eu escrevi uma janela deslizante num Durable Object, uma instância por rota e IP, que se limpa sozinha quando a janela vence. Se o limitador falha, ele deixa passar: o limite protege o serviço, não pode derrubá-lo.
+**Limite por IP com Durable Object.** O limite de 15 varreduras por hora precisava de uma janela de uma hora, e o rate limit nativo do Workers só aceita janelas de 10 ou 60 segundos. Então eu escrevi uma janela deslizante num Durable Object, uma instância por rota e IP, que se limpa sozinha quando a janela vence. Se o limitador falha, ele deixa passar: o limite protege o serviço, não pode derrubá-lo.
 
 **Monitoramento sem e-mail.** Eu não tenho domínio próprio nem conta paga de e-mail transacional. Em vez disso o monitor mantém um feed Atom por domínio e manda um POST para um webhook (serve para Slack e Discord) quando a nota cai. O webhook só aceita HTTPS com nome público, e o destino é conferido de novo na hora do envio.
 

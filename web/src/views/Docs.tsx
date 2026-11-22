@@ -131,7 +131,7 @@ curl -s ${API}/api/feed/lojadojoao.com.br`}</Pre>
 
         <H2 id="limites">LIMITES</H2>
         <P>
-          Por IP e por hora: 5 varreduras, 5 pedidos de correcao, 5 cadastros de monitoramento e 20 perguntas a IA. Localhost e IPs internos (10.x, 172.16 a 31.x, 192.168.x, 169.254.x) sao recusados.
+          Por IP e por hora: 15 varreduras, 15 pedidos de correcao, 5 cadastros de monitoramento e 20 perguntas a IA. Localhost e IPs internos (10.x, 172.16 a 31.x, 192.168.x, 169.254.x) sao recusados.
         </P>
 
         <H2>VEJA TAMBEM</H2>

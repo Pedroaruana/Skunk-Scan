@@ -50,7 +50,7 @@ export const FEATURES: [title: string, desc: string, cmd: string][] = [
   ['monitoramento diario', 'confere o site todo dia, mantem um feed atom da nota e avisa por webhook se ela cair', '/monitorar'],
   ['selo verificado', 'sites com nota A exibem o selo, que some sozinho se a nota cair', '/selo dominio'],
   ['action do github e api', 'a mesma varredura no seu ci, travando o deploy se a nota cair', 'uses: Pedroaruana/Skunk-Scan'],
-  ['protecao contra abuso', '5 varreduras por hora por ip e bloqueio de ips internos e localhost', 'automatico'],
+  ['protecao contra abuso', '15 varreduras por hora por ip e bloqueio de ips internos e localhost', 'automatico'],
 ]
 
 export const CHECKS: [title: string, desc: string, source: string][] = [

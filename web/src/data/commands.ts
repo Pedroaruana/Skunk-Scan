@@ -12,7 +12,7 @@ export const CMDS: [name: string, args: string, desc: string][] = [
   ['/selo', '<dominio>', 'selo para sites com nota A'],
   ['/radar', '', 'seguranca dos sites por estado'],
   ['/como-funciona', '', 'como cada checagem e feita'],
-  ['/docs', '', 'documentacao da cli e da api'],
+  ['/docs', '', 'documentacao da api e da action'],
   ['/termos', '', 'termos de uso'],
   ['/privacidade', '', 'politica de privacidade'],
   ['/limpar', '', 'limpa o terminal'],
@@ -49,7 +49,7 @@ export const FEATURES: [title: string, desc: string, cmd: string][] = [
   ['relatorio em pdf', 'para mandar ao desenvolvedor ou ao cliente', '/relatorio'],
   ['monitoramento diario', 'confere o site todo dia, mantem um feed atom da nota e avisa por webhook se ela cair', '/monitorar'],
   ['selo verificado', 'sites com nota A exibem o selo, que some sozinho se a nota cair', '/selo dominio'],
-  ['linha de comando e api', 'a mesma varredura no terminal ou integrada ao seu sistema', 'npx skunkscan'],
+  ['action do github e api', 'a mesma varredura no seu ci, travando o deploy se a nota cair', 'uses: Pedroaruana/Skunk-Scan'],
   ['protecao contra abuso', '5 varreduras por hora por ip e bloqueio de ips internos e localhost', 'automatico'],
 ]
 

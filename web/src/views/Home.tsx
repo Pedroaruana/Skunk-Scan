@@ -89,27 +89,25 @@ export const Home = ({ term }: { term: TerminalApi }) => {
         </div>
       </div>
 
-      <section className="mt-14 flex flex-wrap items-start gap-8" aria-label="Linha de comando">
+      <section className="mt-14 flex flex-wrap items-start gap-8" aria-label="GitHub Actions">
         <div className="flex flex-[1_1_300px] flex-col gap-3">
-          <Heading>{'// tambem no seu terminal'}</Heading>
+          <Heading>{'// tambem no seu ci'}</Heading>
           <div className="text-sm text-mute">
-            A mesma varredura, sem instalar nada. Da para usar no ci e travar o deploy se a nota cair. <a href="#/docs">ver documentacao</a>
+            A mesma varredura como uma Action do GitHub. Se a nota cair abaixo da minima, o job falha e o deploy para. <a href="#/docs">ver documentacao</a>
           </div>
-          <div className="bg-well px-3.5 py-2.5 text-sm text-bright">npx skunkscan seusite.com.br</div>
+          <div className="bg-well px-3.5 py-2.5 text-sm text-bright">uses: Pedroaruana/Skunk-Scan@main</div>
         </div>
         <pre className="m-0 min-w-0 flex-[2_1_480px] overflow-x-auto border border-edge bg-deep px-[18px] py-4 text-[13px]">
-          {'$ npx skunkscan lojadojoao.com.br --min-grade B\n\n  skunkscan v0.1\n\n  '}
-          <span className="font-bold">[ ok ]</span>
-          {' https ativo\n  '}
-          <span className="font-bold">[ ok ]</span>
-          {' certificado valido ate 03/2027\n  '}
-          <span className="font-bold underline">[ !! ]</span>
-          {' dmarc ausente\n  '}
-          <span className="bg-bright font-bold text-ink">[fail]</span>
-          {' nginx/1.18.0 exposto, 2 cves\n  '}
-          <span className="bg-bright font-bold text-ink">[fail]</span>
-          {' 3 subdominios expostos\n\n  nota D   (minima exigida: B)\n'}
-          <span className="text-mute">{'  processo encerrado com codigo 1'}</span>
+          {'- uses: Pedroaruana/Skunk-Scan@main\n  with:\n    domain: lojadojoao.com.br\n    min-grade: B\n\n'}
+          <span className="font-bold underline">[medio]</span>
+          {' HSTS ausente\n'}
+          <span className="font-bold underline">[medio]</span>
+          {' CSP ausente\n'}
+          <span className="font-bold underline">[medio]</span>
+          {' X-Content-Type-Options ausente\n\nnota C: 0 graves, 3 medios\n'}
+          <span className="bg-bright font-bold text-ink">error</span>
+          {' nota C abaixo da minima B\n'}
+          <span className="text-mute">{'processo encerrado com codigo 1'}</span>
         </pre>
       </section>
 

@@ -2,5 +2,3 @@ User-agent: *
 Allow: /
 Disallow: /api/
 Disallow: /r/
-
-Sitemap: https://skunkscan.app/sitemap.xml

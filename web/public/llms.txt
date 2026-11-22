@@ -14,15 +14,15 @@ Limites: 5 varreduras por hora por IP. Localhost e IPs internos sao bloqueados.
 
 ## Uso
 
-- [Pagina inicial](https://skunkscan.app/): terminal web com os comandos /scan, /corrigir, /comparar, /monitorar, /relatorio, /compartilhar e /selo
-- [Linha de comando](https://www.npmjs.com/package/skunkscan): `npx skunkscan dominio`, com `--json` e `--min-grade` para CI
+- [Pagina inicial](https://pedroaruana.github.io/Skunk-Scan/): terminal web com os comandos /scan, /corrigir, /perguntar, /mapa, /evolucao, /monitorar, /compartilhar e /selo
+- [Documentacao da API e da Action](https://pedroaruana.github.io/Skunk-Scan/#/docs): API HTTP e Action do GitHub com nota minima para o CI
 
 ## Legal
 
-- [Termos de uso](https://skunkscan.app/#termos)
-- [Politica de privacidade](https://skunkscan.app/#privacidade)
-- [Politica de cookies](https://skunkscan.app/#cookies)
+- [Termos de uso](https://pedroaruana.github.io/Skunk-Scan/#termos)
+- [Politica de privacidade](https://pedroaruana.github.io/Skunk-Scan/#privacidade)
+- [Politica de cookies](https://pedroaruana.github.io/Skunk-Scan/#cookies)
 
 ## Optional
 
-- [Codigo-fonte](https://github.com/): projeto da equipe Crypto Skunks no Hack Brasil 2026, trilha Ciberseguranca
+- [Codigo-fonte](https://github.com/Pedroaruana/Skunk-Scan): projeto da equipe Crypto Skunks no Hack Brasil 2026, trilha Ciberseguranca

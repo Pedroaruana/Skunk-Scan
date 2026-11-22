@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react'
+import { API } from '../lib/api'
 
 const TOC: [id: string, label: string][] = [
   ['nome', 'NOME'],
   ['sinopse', 'SINOPSE'],
-  ['opcoes', 'OPCOES'],
+  ['action', 'ACTION DO GITHUB'],
   ['saida', 'CODIGOS DE SAIDA'],
   ['api', 'API'],
   ['exemplos', 'EXEMPLOS'],
@@ -37,7 +38,7 @@ export const Docs = () => (
   <main className="px-[clamp(20px,4vw,64px)]">
     <div className="flex flex-col gap-1.5 pt-10">
       <h1 className="m-0 text-[28px] tracking-[-0.01em] text-bright">man skunkscan</h1>
-      <p className="m-0 max-w-[760px] text-mute">Documentacao da linha de comando e da API.</p>
+      <p className="m-0 max-w-[760px] text-mute">Documentacao do terminal, da Action do GitHub e da API.</p>
     </div>
     <div className="flex flex-wrap items-start gap-10 pt-7 pb-8">
       <nav className="sticky top-16 flex flex-[0_0_200px] flex-col text-[13px]" aria-label="Secoes">
@@ -66,16 +67,20 @@ export const Docs = () => (
         <P>skunkscan - auditoria passiva de seguranca de sites</P>
 
         <H2 id="sinopse">SINOPSE</H2>
-        <Pre>npx skunkscan &lt;dominio&gt; [--json] [--min-grade A|B|C|D] [--sem-cor] [--timeout segundos]</Pre>
+        <P>Tres formas de usar: o terminal desta pagina (digite /ajuda), a Action do GitHub e a API HTTP.</P>
         <P>Le apenas informacoes publicas do dominio: certificado, headers, dns, registros de Certificate Transparency, bases de CVE e registros de dominios. Nao faz teste de invasao.</P>
 
-        <H2 id="opcoes">OPCOES</H2>
+        <H2 id="action">ACTION DO GITHUB</H2>
+        <Pre>{`- uses: Pedroaruana/Skunk-Scan@main
+  with:
+    domain: meusite.com.br
+    min-grade: B`}</Pre>
         <Dl
           items={[
-            ['--json', 'imprime o resultado em JSON, sem animacao. Bom para ci e scripts.'],
-            ['--min-grade <nota>', 'encerra com codigo 1 se a nota for menor que a informada.'],
-            ['--sem-cor', 'desliga as cores e os efeitos do terminal.'],
-            ['--timeout <segundos>', 'tempo maximo da varredura. Padrao: 30.'],
+            ['domain', 'dominio a escanear. Obrigatorio.'],
+            ['min-grade', 'nota minima, de A a D. Abaixo dela o job falha. Padrao: B.'],
+            ['api-url', 'endereco da API. Padrao: a API publica do SkunkScan.'],
+            ['saidas', 'grade, grave, medio e report-id (o relatorio vale 30 dias).'],
           ]}
         />
 
@@ -84,45 +89,50 @@ export const Docs = () => (
           items={[
             ['0', 'nota igual ou acima da minima'],
             ['1', 'nota abaixo da minima'],
-            ['2', 'erro: dominio invalido ou fora do ar'],
+            ['2', 'erro: dominio invalido, site sem resposta ou falha da API'],
             ['3', 'limite de varreduras atingido'],
           ]}
         />
 
         <H2 id="api">API</H2>
-        <Dl items={[['POST /api/scan', 'inicia uma varredura. Responde em text/event-stream, uma linha por checagem concluida.']]} />
-        <Pre>{`curl -N -X POST https://skunkscan.app/api/scan \\
+        <P>Base: {API}</P>
+        <Dl items={[['POST /api/scan', 'corpo {"domain"}. Inicia a varredura e responde em text/event-stream, com os eventos start, step, finding, warn, done e error.']]} />
+        <Pre>{`curl -N -X POST ${API}/api/scan \\
   -H "content-type: application/json" \\
-  -d '{"dominio":"lojadojoao.com.br"}'
+  -d '{"domain":"lojadojoao.com.br"}'
 
-event: linha
-data: {"etapa":1,"status":"ok","texto":"https ativo"}
+event: step
+data: {"id":"web","label":"TLS e headers"}
 
-event: fim
-data: {"id":"8f2k1a","nota":"D","graves":3,"medios":3}`}</Pre>
+event: finding
+data: {"id":"hsts","severity":"medio","title":"HSTS ausente", ...}
+
+event: done
+data: {"domain":"lojadojoao.com.br","grade":"C","grave":0,"medio":4,"id":"8f2k1a9c03de"}`}</Pre>
         <Dl
           items={[
-            ['GET /api/r/:id', 'resultado completo de uma varredura compartilhada.'],
+            ['POST /api/lookalikes', 'corpo {"domain"}. Dominios parecidos registrados, em outra rota por causa do limite de consultas por requisicao.'],
+            ['GET /api/r/:id', 'relatorio completo de uma varredura, por 30 dias.'],
+            ['POST /api/fix', 'corpo {"id"}. Correcoes prontas para os problemas do relatorio, com o texto da IA quando disponivel.'],
+            ['POST /api/ask', 'corpo {"question","id?"}. Resposta da IA, usando o relatorio como contexto quando o id e enviado.'],
+            ['GET /api/history/:dominio', 'nota, contagens e data das ultimas varreduras do dominio, por ate 180 dias.'],
+            ['GET /api/feed/:dominio', 'feed Atom com as ultimas varreduras do dominio: nota, contagens e data.'],
             ['GET /api/selo/:dominio.svg', 'selo do site em SVG. So existe enquanto a varredura mais recente (ate 30 dias) tiver nota A; fora disso responde 404 e a imagem some. A resposta fica em cache por 1 hora.'],
             ['POST /api/monitor', 'corpo {"domain","webhook?"}. Ativa a verificacao diaria e devolve o token para remover. Com webhook https, recebe um POST quando a nota cair. Vale por 90 dias.'],
             ['DELETE /api/monitor/:token', 'remove o monitoramento.'],
-            ['GET /api/feed/:dominio', 'feed Atom com as ultimas varreduras do dominio: nota, contagens e data.'],
-            ['POST /api/perguntar', 'corpo {"pergunta","id?"}. Resposta da ia, usando o resultado da varredura como contexto quando o id e enviado.'],
           ]}
         />
 
         <H2 id="exemplos">EXEMPLOS</H2>
-        <Pre>{`npx skunkscan lojadojoao.com.br
-npx skunkscan lojadojoao.com.br --json > resultado.json
-npx skunkscan lojadojoao.com.br --min-grade B   # trava o ci se cair abaixo de B`}</Pre>
-        <P>No GitHub Actions, com a Action do SkunkScan (o job falha se a nota ficar abaixo da minima):</P>
-        <Pre>{`- uses: Pedroaruana/Skunk-Scan@main
-  with:
-    domain: meusite.com.br
-    min-grade: B`}</Pre>
+        <Pre>{`curl -s ${API}/api/history/lojadojoao.com.br
+curl -s ${API}/api/feed/lojadojoao.com.br`}</Pre>
+        <P>Selo no rodape de um site:</P>
+        <Pre>{`<img src="${API}/api/selo/meusite.com.br.svg" alt="verificado pelo skunkscan, nota A">`}</Pre>
 
         <H2 id="limites">LIMITES</H2>
-        <P>5 varreduras por hora por IP. Localhost e IPs internos (10.x, 172.16 a 31.x, 192.168.x, 169.254.x) sao recusados.</P>
+        <P>
+          Por IP e por hora: 5 varreduras, 5 pedidos de correcao, 5 cadastros de monitoramento e 20 perguntas a IA. Localhost e IPs internos (10.x, 172.16 a 31.x, 192.168.x, 169.254.x) sao recusados.
+        </P>
 
         <H2>VEJA TAMBEM</H2>
         <P>

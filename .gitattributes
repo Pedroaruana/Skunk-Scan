@@ -1,0 +1,2 @@
+# o script roda no Linux dos runners: nunca com CRLF
+*.sh text eol=lf

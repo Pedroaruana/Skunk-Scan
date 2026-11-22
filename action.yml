@@ -1,0 +1,45 @@
+name: SkunkScan autoscan
+description: Varredura passiva de seguranca de um site. Falha o job se a nota ficar abaixo da minima.
+author: Crypto Skunks
+
+branding:
+  icon: shield
+  color: gray-dark
+
+inputs:
+  domain:
+    description: Dominio a escanear, ex. meusite.com.br
+    required: true
+  min-grade:
+    description: Nota minima (A, B, C ou D). Abaixo dela o job falha.
+    required: false
+    default: B
+  api-url:
+    description: Endereco da API do SkunkScan
+    required: false
+    default: https://skunkscan-api.aruanapedro.workers.dev
+
+outputs:
+  grade:
+    description: Nota final (A a D)
+    value: ${{ steps.scan.outputs.grade }}
+  grave:
+    description: Quantidade de problemas graves
+    value: ${{ steps.scan.outputs.grave }}
+  medio:
+    description: Quantidade de problemas medios
+    value: ${{ steps.scan.outputs.medio }}
+  report-id:
+    description: Id do relatorio publico (vale 30 dias)
+    value: ${{ steps.scan.outputs.report-id }}
+
+runs:
+  using: composite
+  steps:
+    - id: scan
+      shell: bash
+      env:
+        DOMAIN: ${{ inputs.domain }}
+        MIN_GRADE: ${{ inputs.min-grade }}
+        API_URL: ${{ inputs.api-url }}
+      run: bash "${{ github.action_path }}/action/autoscan.sh"

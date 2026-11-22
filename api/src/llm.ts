@@ -12,7 +12,7 @@ export type Fix = {
 
 export type FixResult = { fixes: Fix[]; ai: boolean }
 
-const MODEL = '@cf/meta/llama-3.1-8b-instruct'
+const MODEL = '@cf/meta/llama-3.1-8b-instruct-fast'
 const MAX_FIXES = 12
 
 const header = (name: string, value: string) => `add_header ${name} "${value}" always;`
@@ -42,21 +42,35 @@ export const buildFixes = (domain: string, findings: Finding[]): Fix[] =>
       how: null,
     }))
 
-const prompt = (domain: string, fixes: Fix[]) =>
-  [
-    `O site ${domain} tem os problemas de seguranca abaixo. Para cada um, escreva em portugues do Brasil UMA frase curta`,
-    'dizendo onde aplicar a correcao (arquivo de configuracao, painel da hospedagem ou do DNS), para um dono de pequena empresa sem experiencia tecnica.',
-    'Nao invente comandos nem configuracoes, nao repita o titulo. Responda so com JSON: [{"id": "...", "how": "..."}]',
-    '',
-    ...fixes.map((f) => `- id=${f.id}: ${f.title}`),
-  ].join('\n')
+const messages = (domain: string, fixes: Fix[]) => [
+  {
+    role: 'system',
+    content: [
+      'Voce ajuda donos de pequenas empresas, sem experiencia tecnica, a corrigir problemas de seguranca do site.',
+      'Para cada problema da lista, escreva em portugues do Brasil UMA frase curta dizendo onde aplicar a correcao (arquivo de configuracao, painel da hospedagem ou do DNS).',
+      'Nao invente comandos nem configuracoes, nao repita o titulo, nao crie problemas que nao estao na lista.',
+      'Responda so com um array JSON, um item por problema, neste formato: [{"id": "...", "how": "..."}]',
+    ].join('\n'),
+  },
+  { role: 'user', content: [`Site: ${domain}`, ...fixes.map((f) => `- id=${f.id}: ${f.title}`)].join('\n') },
+]
 
-type AiBinding = { run: (model: string, input: { prompt: string; max_tokens: number }) => Promise<unknown> }
+type AiBinding = { run: (model: string, input: { messages: { role: string; content: string }[]; max_tokens: number }) => Promise<unknown> }
+
+// o Workers AI devolve { response } em uns modelos e o formato de chat completions em outros
+const aiText = (raw: unknown): string => {
+  if (typeof raw !== 'object' || !raw) return ''
+  const r = raw as { response?: unknown; choices?: { message?: { content?: unknown }; text?: unknown }[] }
+  if (typeof r.response === 'string') return r.response
+  const c = r.choices?.[0]
+  const text = c?.message?.content ?? c?.text
+  return typeof text === 'string' ? text : ''
+}
 
 // pega o primeiro array JSON da resposta e so aceita ids que pedimos, com texto curto
 const parseHow = (raw: unknown, fixes: Fix[]): Map<string, string> => {
   const out = new Map<string, string>()
-  const text = typeof raw === 'object' && raw && 'response' in raw ? String((raw as { response: unknown }).response) : ''
+  const text = aiText(raw)
   const match = text.match(/\[[\s\S]*\]/)
   if (!match) return out
   let list: unknown
@@ -80,7 +94,7 @@ export const generateFixes = async (domain: string, findings: Finding[], ai?: Ai
   const fixes = buildFixes(domain, findings)
   if (!ai || fixes.length === 0) return { fixes, ai: false }
   try {
-    const how = parseHow(await ai.run(MODEL, { prompt: prompt(domain, fixes), max_tokens: 900 }), fixes)
+    const how = parseHow(await ai.run(MODEL, { messages: messages(domain, fixes), max_tokens: 900 }), fixes)
     return { fixes: fixes.map((f) => ({ ...f, how: how.get(f.id) ?? null })), ai: how.size > 0 }
   } catch (e) {
     console.error(JSON.stringify({ event: 'ai_failed', message: e instanceof Error ? e.message : 'desconhecido' }))

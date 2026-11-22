@@ -6,7 +6,7 @@ export type Answer = { answer: string; source: 'ai' | 'cache' | 'keyword' }
 
 export const MAX_QUESTION = 300
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000
-const MODEL = '@cf/meta/llama-3.1-8b-instruct'
+const MODEL = '@cf/meta/llama-3.1-8b-instruct-fast'
 
 export const normalize = (s: string): string =>
   s

@@ -57,9 +57,11 @@ export const App = () => {
     <>
       <div className="page min-h-screen bg-bg pb-12">
         <header className="sticky top-0 z-[5] flex items-center gap-2 border-b border-edge bg-panel px-4 py-2.5 print:hidden">
-          <Dots />
-          <span className="flex-1 text-center text-xs text-mute">skunkscan ~ zsh</span>
-          <nav className="flex flex-wrap gap-0.5" aria-label="Paginas">
+          <div className="hidden items-center gap-2 sm:flex">
+            <Dots />
+          </div>
+          <span className="hidden flex-1 text-center text-xs text-mute sm:block">skunkscan ~ zsh</span>
+          <nav className="flex flex-1 flex-wrap justify-center gap-0.5 sm:flex-none" aria-label="Paginas">
             {NAV.map(([v, href, label]) => (
               <a
                 key={v}

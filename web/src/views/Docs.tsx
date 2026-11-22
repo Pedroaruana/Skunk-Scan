@@ -103,7 +103,7 @@ data: {"id":"8f2k1a","nota":"D","graves":3,"medios":3}`}</Pre>
         <Dl
           items={[
             ['GET /api/r/:id', 'resultado completo de uma varredura compartilhada.'],
-            ['GET /api/selo/:dominio.svg', 'selo do site. So existe enquanto a nota for A.'],
+            ['GET /api/selo/:dominio.svg', 'selo do site em SVG. So existe enquanto a varredura mais recente (ate 30 dias) tiver nota A; fora disso responde 404 e a imagem some. A resposta fica em cache por 1 hora.'],
             ['POST /api/monitor', 'corpo {"domain","webhook?"}. Ativa a verificacao diaria e devolve o token para remover. Com webhook https, recebe um POST quando a nota cair. Vale por 90 dias.'],
             ['DELETE /api/monitor/:token', 'remove o monitoramento.'],
             ['GET /api/feed/:dominio', 'feed Atom com as ultimas varreduras do dominio: nota, contagens e data.'],
@@ -115,8 +115,11 @@ data: {"id":"8f2k1a","nota":"D","graves":3,"medios":3}`}</Pre>
         <Pre>{`npx skunkscan lojadojoao.com.br
 npx skunkscan lojadojoao.com.br --json > resultado.json
 npx skunkscan lojadojoao.com.br --min-grade B   # trava o ci se cair abaixo de B`}</Pre>
-        <P>No GitHub Actions:</P>
-        <Pre>{'- run: npx skunkscan meusite.com.br --min-grade B --sem-cor'}</Pre>
+        <P>No GitHub Actions, com a Action do SkunkScan (o job falha se a nota ficar abaixo da minima):</P>
+        <Pre>{`- uses: Pedroaruana/Skunk-Scan@main
+  with:
+    domain: meusite.com.br
+    min-grade: B`}</Pre>
 
         <H2 id="limites">LIMITES</H2>
         <P>5 varreduras por hora por IP. Localhost e IPs internos (10.x, 172.16 a 31.x, 192.168.x, 169.254.x) sao recusados.</P>

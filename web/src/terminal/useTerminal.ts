@@ -406,8 +406,8 @@ export const useTerminal = () => {
           L('normal', '│       skunkscan   nota A     │', 60),
           L('normal', '└──────────────────────────────┘', 200),
           L('dim', 'cole no rodape do seu site:', 200),
-          L('code', '<a href="https://skunkscan.app/v/' + d + '"><img src="https://skunkscan.app/selo/' + d + '.svg" alt="verificado pelo skunkscan, nota A"></a>', 200),
-          L('dim', 'o selo e checado todo dia. se a nota cair, ele some sozinho.', 100),
+          L('code', '<a href="' + location.origin + location.pathname + '"><img src="' + API + '/api/selo/' + d + '.svg" alt="verificado pelo skunkscan, nota A"></a>', 200),
+          L('dim', 'o selo mostra a nota da varredura mais recente e some se ela cair ou passar de 30 dias. ative o /monitorar para ele se manter atualizado.', 100),
         ])
       }
       case '/termos':

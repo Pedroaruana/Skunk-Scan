@@ -73,3 +73,12 @@ export const loadHistory = async (db: D1Database, domain: string, limit = 30): P
     .all<{ grade: Grade; grave: number; medio: number; created_at: number }>()
   return results.map((r) => ({ grade: r.grade, grave: r.grave, medio: r.medio, createdAt: r.created_at })).reverse()
 }
+
+// Nota da varredura mais recente do dominio (dentro da janela de historico), pra decidir o selo.
+export const loadLatest = async (db: D1Database, domain: string): Promise<{ grade: Grade; createdAt: number } | null> => {
+  const row = await db
+    .prepare('SELECT grade, created_at FROM scans WHERE domain = ? AND created_at >= ? ORDER BY created_at DESC LIMIT 1')
+    .bind(domain, Date.now() - HISTORY_RETENTION_MS)
+    .first<{ grade: Grade; created_at: number }>()
+  return row ? { grade: row.grade, createdAt: row.created_at } : null
+}

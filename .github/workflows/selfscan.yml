@@ -1,0 +1,23 @@
+name: Autoscan do proprio site
+
+on:
+  schedule:
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      # usa a Action deste repositorio. A nota atual do site e C (o GitHub Pages nao deixa configurar headers),
+      # entao o minimo e C: o job falha se o site piorar para D.
+      - uses: ./
+        with:
+          domain: pedroaruana.github.io
+          min-grade: C

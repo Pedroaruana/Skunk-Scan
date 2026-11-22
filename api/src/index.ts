@@ -8,7 +8,8 @@ import { answerQuestion, MAX_QUESTION } from './ask'
 import { generateFixes } from './llm'
 import { atomFeed } from './feed'
 import { createMonitor, isToken, parseWebhook, removeMonitor, runDueMonitor, TTL_DAYS } from './monitor'
-import { isId, loadHistory, loadReport, saveReport } from './reports'
+import { isId, loadHistory, loadLatest, loadReport, saveReport } from './reports'
+import { buildSeal } from './seal'
 import { scanChecks, type Run } from './scan'
 import type { Finding } from './types'
 
@@ -128,6 +129,16 @@ export default {
           : json({ error: 'esse dominio ja esta monitorado com esse webhook' }, 409)
       }
       return json({ domain, token: created.token, feed: `/api/feed/${domain}`, webhook: webhook !== null, expiresInDays: TTL_DAYS }, 201, rateHeaders(limit))
+    }
+    if (pathname.startsWith('/api/selo/')) {
+      if (req.method !== 'GET') return json({ error: 'use GET' }, 405)
+      const name = pathname.slice('/api/selo/'.length)
+      const domain = name.endsWith('.svg') ? parseDomain(name.slice(0, -'.svg'.length)) : null
+      if (!domain) return json({ error: 'use /api/selo/<dominio>.svg' }, 400)
+      const svg = buildSeal(domain, await loadLatest(env.DB, domain))
+      // sem nota A recente nao existe selo: a imagem some do site de quem a incorporou
+      if (!svg) return json({ error: 'sem selo para este dominio' }, 404)
+      return new Response(svg, { headers: { 'content-type': 'image/svg+xml; charset=utf-8', 'cache-control': 'public, max-age=3600', ...cors } })
     }
     if (pathname.startsWith('/api/history/')) {
       if (req.method !== 'GET') return json({ error: 'use GET' }, 405)

@@ -41,7 +41,7 @@ const Termos = () => (
     </Ul>
     <P>Podemos bloquear o acesso de quem violar estas regras.</P>
     <H2>4. Limites</H2>
-    <P>Cada IP pode fazer ate 5 varreduras, 5 pedidos de correcao e 5 cadastros de monitoramento por hora, e ate 20 perguntas a IA por hora. Localhost e IPs internos sao bloqueados.</P>
+    <P>Cada IP pode fazer ate 15 varreduras, 15 pedidos de correcao e 5 cadastros de monitoramento por hora, e ate 20 perguntas a IA por hora. Localhost e IPs internos sao bloqueados.</P>
     <H2>5. Resultados e IA</H2>
     <P>
       Os resultados e as correcoes sugeridas sao informativos. As frases de orientacao e as respostas do assistente sao geradas por IA e podem conter erros. Revise cada correcao antes de aplicar. O SkunkScan nao garante que um site esteja livre de falhas.

@@ -1,6 +1,9 @@
 import { DurableObject } from 'cloudflare:workers'
 
-export const LIMIT = 5
+// varreduras, dominios parecidos e pedidos de correcao por IP e por hora. O /comparar usa 2 varreduras, entao 15 deixa uma boa folga
+export const LIMIT = 15
+// cada monitor vira trabalho do cron todo dia, entao esse limite continua baixo
+export const MONITOR_LIMIT = 5
 export const WINDOW_MS = 60 * 60 * 1000
 
 export type LimitResult = { ok: boolean; remaining: number; retryAfter: number }
